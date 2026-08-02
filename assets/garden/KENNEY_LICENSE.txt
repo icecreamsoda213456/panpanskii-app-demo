@@ -1,0 +1,6 @@
+Garden sprites sourced from Kenney's Pixel Platformer Farm Expansion.
+Asset page: https://kenney.nl/assets/pixel-platformer-farm-expansion
+License: Creative Commons CC0.
+
+Only the selected sprites in this folder are included in the app:
+seed, sprout, growing, budding, bloom, and soil.

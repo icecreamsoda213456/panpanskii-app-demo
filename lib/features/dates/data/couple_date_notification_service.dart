@@ -1,0 +1,393 @@
+import 'dart:typed_data';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:timezone/data/latest.dart' as timezone_data;
+import 'package:timezone/timezone.dart' as timezone;
+
+import 'couple_date_store.dart';
+
+class CoupleDateReminderAccess {
+  const CoupleDateReminderAccess({
+    required this.notificationsAllowed,
+    required this.exactTimingAllowed,
+    required this.fullScreenAllowed,
+  });
+
+  final bool notificationsAllowed;
+  final bool exactTimingAllowed;
+  final bool fullScreenAllowed;
+
+  bool get prominentAlertsReady =>
+      notificationsAllowed && exactTimingAllowed && fullScreenAllowed;
+}
+
+class CoupleDateNotificationService {
+  // Android channel alert settings are immutable after first creation, so a
+  // new channel id reliably enables sound and vibration for existing installs.
+  static const _channelId = 'couple_date_prominent_reminders_v3';
+  static const _channelName = 'Prominent date reminders';
+  static const _channelDescription =
+      'Full-size alerts with alarm sound and vibration for date plans.';
+  static const _notificationIdFloor = 100000000;
+  static const _notificationIdSpan = 900000000;
+  static const _testNotificationId = _notificationIdFloor - 1;
+  static const _alarmSound =
+      UriAndroidNotificationSound('content://settings/system/alarm_alert');
+
+  static final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
+  static final Int64List _vibrationPattern = Int64List.fromList(
+    const <int>[0, 700, 240, 700, 240, 1000],
+  );
+
+  static bool _isInitialized = false;
+
+  static Future<void> syncUpcomingPlans() async {
+    try {
+      final plans = await CoupleDateStore().loadUpcomingPlans();
+      await syncPlans(plans);
+    } catch (_) {
+      // A failed sync can retry on the next login, Realtime event, or screen load.
+    }
+  }
+
+  static Future<void> syncPlans(List<CoupleDatePlan> plans) async {
+    try {
+      await _initialize();
+      final now = DateTime.now();
+      final desired = <int, CoupleDatePlan>{};
+
+      for (final plan in plans) {
+        final reminderAt = plan.reminderAt;
+        if (reminderAt == null || !reminderAt.isAfter(now)) {
+          continue;
+        }
+        desired[_notificationId(plan.id)] = plan;
+      }
+
+      final pending = await _notifications.pendingNotificationRequests();
+      for (final request in pending) {
+        if (_isDateNotificationId(request.id) &&
+            !desired.containsKey(request.id)) {
+          await _notifications.cancel(id: request.id);
+        }
+      }
+
+      for (final entry in desired.entries) {
+        await _schedule(entry.key, entry.value);
+      }
+    } catch (_) {
+      // Scheduling support differs by platform and should not block the feature.
+    }
+  }
+
+  static Future<void> cancelPlan(String planId) async {
+    try {
+      await _initialize();
+      await _notifications.cancel(id: _notificationId(planId));
+    } catch (_) {
+      // Cancellation can safely retry during the next full sync.
+    }
+  }
+
+  static Future<bool> requestNotificationPermission() async {
+    await _initialize();
+    final android = _notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) {
+      return true;
+    }
+
+    var allowed = await android.areNotificationsEnabled() ?? true;
+    if (!allowed) {
+      allowed = await android.requestNotificationsPermission() ?? false;
+    }
+    return allowed;
+  }
+
+  static Future<CoupleDateReminderAccess>
+      requestProminentReminderAccess() async {
+    await _initialize();
+    final android = _notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) {
+      return const CoupleDateReminderAccess(
+        notificationsAllowed: true,
+        exactTimingAllowed: true,
+        fullScreenAllowed: true,
+      );
+    }
+
+    final notificationsAllowed = await requestNotificationPermission();
+    if (!notificationsAllowed) {
+      return const CoupleDateReminderAccess(
+        notificationsAllowed: false,
+        exactTimingAllowed: false,
+        fullScreenAllowed: false,
+      );
+    }
+
+    var exactTimingAllowed =
+        await android.canScheduleExactNotifications() ?? true;
+    if (!exactTimingAllowed) {
+      exactTimingAllowed =
+          await android.requestExactAlarmsPermission() ?? false;
+    }
+
+    final fullScreenAllowed =
+        await android.requestFullScreenIntentPermission() ?? false;
+    return CoupleDateReminderAccess(
+      notificationsAllowed: true,
+      exactTimingAllowed: exactTimingAllowed,
+      fullScreenAllowed: fullScreenAllowed,
+    );
+  }
+
+  static Future<void> showTestReminder() async {
+    await _initialize();
+    const title = 'Our Dates reminder test';
+    const body =
+        'Your prominent calendar alert is working. Future plans will ring and vibrate at their reminder time.';
+    await _showWithIconFallback(
+      id: _testNotificationId,
+      title: title,
+      body: body,
+      summary: 'Prominent reminder test',
+      payload: 'couple-date:test',
+    );
+  }
+
+  static Future<void> _schedule(int id, CoupleDatePlan plan) async {
+    final reminderAt = plan.reminderAt;
+    if (reminderAt == null || !reminderAt.isAfter(DateTime.now())) {
+      return;
+    }
+
+    final title = 'Our Dates: ${plan.title}';
+    final timing = plan.isShared
+        ? '${plan.category.label} time with your person at ${_formatTime(plan.startsAt)}.'
+        : 'Your personal plan starts at ${_formatTime(plan.startsAt)}.';
+    final body =
+        plan.notes.trim().isEmpty ? timing : '$timing\n\n${plan.notes.trim()}';
+    final android = _notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    final canScheduleExactly =
+        await android?.canScheduleExactNotifications() ?? false;
+    final preferredMode = canScheduleExactly
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexactAllowWhileIdle;
+
+    await _notifications.cancel(id: id);
+    try {
+      await _zonedSchedule(
+        id: id,
+        plan: plan,
+        title: title,
+        body: body,
+        mode: preferredMode,
+      );
+    } catch (_) {
+      if (preferredMode != AndroidScheduleMode.exactAllowWhileIdle) {
+        rethrow;
+      }
+      await _zonedSchedule(
+        id: id,
+        plan: plan,
+        title: title,
+        body: body,
+        mode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+    }
+  }
+
+  static Future<void> _zonedSchedule({
+    required int id,
+    required CoupleDatePlan plan,
+    required String title,
+    required String body,
+    required AndroidScheduleMode mode,
+  }) async {
+    final summary = plan.isShared ? 'Shared date plan' : 'Personal date plan';
+    final scheduledDate = timezone.TZDateTime.from(
+      plan.reminderAt!,
+      timezone.local,
+    );
+
+    Future<void> schedule({required bool useCustomIcon}) {
+      return _notifications.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduledDate,
+        notificationDetails: _notificationDetails(
+          title: title,
+          body: body,
+          summary: summary,
+          useCustomIcon: useCustomIcon,
+        ),
+        androidScheduleMode: mode,
+        payload: 'couple-date:${plan.id}',
+      );
+    }
+
+    try {
+      await schedule(useCustomIcon: true);
+    } on PlatformException catch (error) {
+      if (error.code != 'invalid_icon') {
+        rethrow;
+      }
+      await schedule(useCustomIcon: false);
+    }
+  }
+
+  static Future<void> _showWithIconFallback({
+    required int id,
+    required String title,
+    required String body,
+    required String summary,
+    required String payload,
+  }) async {
+    Future<void> show({required bool useCustomIcon}) {
+      return _notifications.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: _notificationDetails(
+          title: title,
+          body: body,
+          summary: summary,
+          useCustomIcon: useCustomIcon,
+        ),
+        payload: payload,
+      );
+    }
+
+    try {
+      await show(useCustomIcon: true);
+    } on PlatformException catch (error) {
+      if (error.code != 'invalid_icon') {
+        rethrow;
+      }
+      await show(useCustomIcon: false);
+    }
+  }
+
+  static NotificationDetails _notificationDetails({
+    required String title,
+    required String body,
+    required String summary,
+    bool useCustomIcon = true,
+  }) {
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: _channelDescription,
+        icon: useCustomIcon ? 'ic_stat_panpanskii_reminder' : null,
+        importance: Importance.max,
+        priority: Priority.max,
+        styleInformation: BigTextStyleInformation(
+          body,
+          contentTitle: title,
+          summaryText: summary,
+        ),
+        playSound: true,
+        sound: _alarmSound,
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+        enableVibration: true,
+        vibrationPattern: _vibrationPattern,
+        enableLights: true,
+        ticker: title,
+        visibility: NotificationVisibility.private,
+        category: AndroidNotificationCategory.alarm,
+        fullScreenIntent: true,
+        subText: 'Our Dates',
+      ),
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        interruptionLevel: InterruptionLevel.timeSensitive,
+      ),
+      macOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        interruptionLevel: InterruptionLevel.timeSensitive,
+      ),
+    );
+  }
+
+  static Future<void> _initialize() async {
+    if (_isInitialized) {
+      return;
+    }
+
+    timezone_data.initializeTimeZones();
+    await _setLocalTimezone();
+
+    const settings = InitializationSettings(
+      // The launcher icon is guaranteed to exist, so permission setup and plan
+      // saving cannot fail before the custom reminder icon is resolved.
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+      macOS: DarwinInitializationSettings(),
+    );
+    await _notifications.initialize(settings: settings);
+    await _notifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(
+          AndroidNotificationChannel(
+            _channelId,
+            _channelName,
+            description: _channelDescription,
+            importance: Importance.max,
+            playSound: true,
+            sound: _alarmSound,
+            audioAttributesUsage: AudioAttributesUsage.alarm,
+            enableVibration: true,
+            vibrationPattern: _vibrationPattern,
+            enableLights: true,
+          ),
+        );
+    _isInitialized = true;
+  }
+
+  static Future<void> _setLocalTimezone() async {
+    var locationName = 'Asia/Manila';
+    try {
+      locationName = (await FlutterTimezone.getLocalTimezone()).identifier;
+    } catch (_) {
+      // Asia/Manila matches the app's intended default timezone.
+    }
+
+    try {
+      timezone.setLocalLocation(timezone.getLocation(locationName));
+    } catch (_) {
+      timezone.setLocalLocation(timezone.getLocation('Asia/Manila'));
+    }
+  }
+
+  static int _notificationId(String planId) {
+    var hash = 0x811c9dc5;
+    for (final codeUnit in planId.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * 0x01000193) & 0x7fffffff;
+    }
+    return _notificationIdFloor + (hash % _notificationIdSpan);
+  }
+
+  static bool _isDateNotificationId(int id) {
+    return id >= _notificationIdFloor &&
+        id < _notificationIdFloor + _notificationIdSpan;
+  }
+
+  static String _formatTime(DateTime date) {
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute ${date.hour >= 12 ? 'PM' : 'AM'}';
+  }
+}
