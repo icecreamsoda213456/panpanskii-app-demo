@@ -26,21 +26,40 @@ class CoupleDateReminderAccess {
 class CoupleDateNotificationService {
   // Android channel alert settings are immutable after first creation, so a
   // new channel id reliably enables sound and vibration for existing installs.
-  static const _channelId = 'couple_date_prominent_reminders_v3';
-  static const _channelName = 'Prominent date reminders';
+  static const _channelId = 'couple_date_alarm_reminders_v4';
+  static const _channelName = 'Date alarms';
   static const _channelDescription =
-      'Full-size alerts with alarm sound and vibration for date plans.';
+      'Alarm-style alerts with sound and strong vibration for date plans.';
   static const _notificationIdFloor = 100000000;
   static const _notificationIdSpan = 900000000;
   static const _testNotificationId = _notificationIdFloor - 1;
+  static const _scheduledTestDelay = Duration(seconds: 8);
+  static const _alarmTimeoutMilliseconds = 60000;
+  static const _testAlarmTimeoutMilliseconds = 15000;
   static const _alarmSound =
       UriAndroidNotificationSound('content://settings/system/alarm_alert');
 
   static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   static final Int64List _vibrationPattern = Int64List.fromList(
-    const <int>[0, 700, 240, 700, 240, 1000],
+    const <int>[
+      0,
+      900,
+      250,
+      900,
+      250,
+      1400,
+      450,
+      900,
+      250,
+      900,
+      250,
+      1400,
+    ],
   );
+  // Android Notification.FLAG_INSISTENT repeats the alarm sound until the
+  // alert is opened, dismissed, or reaches its timeout.
+  static final Int32List _alarmFlags = Int32List.fromList(const <int>[4]);
 
   static bool _isInitialized = false;
 
@@ -89,6 +108,29 @@ class CoupleDateNotificationService {
       await _notifications.cancel(id: _notificationId(planId));
     } catch (_) {
       // Cancellation can safely retry during the next full sync.
+    }
+  }
+
+  static Future<void> schedulePlan(CoupleDatePlan plan) async {
+    await _initialize();
+    final reminderAt = plan.reminderAt;
+    if (reminderAt == null) {
+      await _notifications.cancel(id: _notificationId(plan.id));
+      return;
+    }
+    if (!reminderAt.isAfter(DateTime.now())) {
+      throw StateError(
+        'The selected reminder time has already passed. Choose a later plan or a shorter reminder.',
+      );
+    }
+
+    final id = _notificationId(plan.id);
+    await _schedule(id, plan);
+    final pending = await _notifications.pendingNotificationRequests();
+    if (!pending.any((request) => request.id == id)) {
+      throw StateError(
+        'Android did not keep this date alarm. Check Notifications and Alarms & reminders access, then save again.',
+      );
     }
   }
 
@@ -156,7 +198,60 @@ class CoupleDateNotificationService {
       body: body,
       summary: 'Prominent reminder test',
       payload: 'couple-date:test',
+      timeoutAfter: _testAlarmTimeoutMilliseconds,
     );
+  }
+
+  static Future<void> scheduleTestReminder() async {
+    await _initialize();
+    final android = _notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    final canScheduleExactly =
+        await android?.canScheduleExactNotifications() ?? false;
+    if (!canScheduleExactly) {
+      throw StateError(
+        'Exact alarms are off. Enable Alarms & reminders, then run the test again.',
+      );
+    }
+
+    const title = 'Our Dates alarm test';
+    const body =
+        'Your scheduled date alarm is working with sound and vibration.';
+    final scheduledDate =
+        timezone.TZDateTime.now(timezone.local).add(_scheduledTestDelay);
+
+    Future<void> schedule({required bool useCustomIcon}) {
+      return _notifications.zonedSchedule(
+        id: _testNotificationId,
+        title: title,
+        body: body,
+        scheduledDate: scheduledDate,
+        notificationDetails: _notificationDetails(
+          title: title,
+          body: body,
+          summary: 'Scheduled reminder test',
+          useCustomIcon: useCustomIcon,
+          timeoutAfter: _testAlarmTimeoutMilliseconds,
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: 'couple-date:test',
+      );
+    }
+
+    await _notifications.cancel(id: _testNotificationId);
+    try {
+      await schedule(useCustomIcon: true);
+    } on PlatformException catch (error) {
+      if (error.code != 'invalid_icon') {
+        rethrow;
+      }
+      await schedule(useCustomIcon: false);
+    }
+
+    final pending = await _notifications.pendingNotificationRequests();
+    if (!pending.any((request) => request.id == _testNotificationId)) {
+      throw StateError('Android did not keep the scheduled alarm test.');
+    }
   }
 
   static Future<void> _schedule(int id, CoupleDatePlan plan) async {
@@ -248,6 +343,7 @@ class CoupleDateNotificationService {
     required String body,
     required String summary,
     required String payload,
+    required int timeoutAfter,
   }) async {
     Future<void> show({required bool useCustomIcon}) {
       return _notifications.show(
@@ -259,6 +355,7 @@ class CoupleDateNotificationService {
           body: body,
           summary: summary,
           useCustomIcon: useCustomIcon,
+          timeoutAfter: timeoutAfter,
         ),
         payload: payload,
       );
@@ -279,6 +376,7 @@ class CoupleDateNotificationService {
     required String body,
     required String summary,
     bool useCustomIcon = true,
+    int timeoutAfter = _alarmTimeoutMilliseconds,
   }) {
     return NotificationDetails(
       android: AndroidNotificationDetails(
@@ -298,11 +396,16 @@ class CoupleDateNotificationService {
         audioAttributesUsage: AudioAttributesUsage.alarm,
         enableVibration: true,
         vibrationPattern: _vibrationPattern,
+        autoCancel: true,
+        ongoing: false,
+        onlyAlertOnce: false,
         enableLights: true,
         ticker: title,
         visibility: NotificationVisibility.private,
+        timeoutAfter: timeoutAfter,
         category: AndroidNotificationCategory.alarm,
         fullScreenIntent: true,
+        additionalFlags: _alarmFlags,
         subText: 'Our Dates',
       ),
       iOS: const DarwinNotificationDetails(

@@ -42,9 +42,12 @@ class PanpanskiiApp extends StatefulWidget {
 class _PanpanskiiAppState extends State<PanpanskiiApp>
     with WidgetsBindingObserver {
   static const _themeModeKey = 'panpanskii_theme_mode';
+  static const _backgroundLockGracePeriod = Duration(minutes: 2);
 
   final _accountStore = LocalAccountStore();
   final _localAuthentication = LocalAuthentication();
+  Timer? _backgroundLockTimer;
+  DateTime? _backgroundedAt;
   ThemeMode _themeMode = ThemeMode.light;
   LocalAccount? _account;
   RealtimeChannel? _realtimeNotificationChannel;
@@ -66,18 +69,59 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _clearBackgroundLockState();
     _stopRealtimeNotifications();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if ((state == AppLifecycleState.paused ||
-            state == AppLifecycleState.detached) &&
-        _account != null &&
-        _isUnlocked) {
+    if (state == AppLifecycleState.resumed) {
+      _resumeFromBackground();
+      return;
+    }
+
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _startBackgroundLockCountdown();
+    }
+  }
+
+  void _startBackgroundLockCountdown() {
+    if (_account == null || !_isUnlocked || _backgroundedAt != null) {
+      return;
+    }
+
+    _backgroundedAt = DateTime.now();
+    _backgroundLockTimer?.cancel();
+    _backgroundLockTimer = Timer(_backgroundLockGracePeriod, () {
+      if (!mounted || _backgroundedAt == null || !_isUnlocked) {
+        return;
+      }
+      _backgroundLockTimer = null;
+      setState(() => _isUnlocked = false);
+    });
+  }
+
+  void _resumeFromBackground() {
+    final backgroundedAt = _backgroundedAt;
+    _clearBackgroundLockState();
+
+    if (backgroundedAt == null || _account == null || !_isUnlocked) {
+      return;
+    }
+
+    if (DateTime.now().difference(backgroundedAt) >=
+        _backgroundLockGracePeriod) {
       setState(() => _isUnlocked = false);
     }
+  }
+
+  void _clearBackgroundLockState() {
+    _backgroundLockTimer?.cancel();
+    _backgroundLockTimer = null;
+    _backgroundedAt = null;
   }
 
   Future<void> _loadThemeMode() async {
@@ -108,6 +152,7 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
     if (!mounted) {
       return;
     }
+    _clearBackgroundLockState();
     setState(() {
       _account = account;
       _isUnlocked = false;
@@ -135,6 +180,7 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
     if (!mounted) {
       return;
     }
+    _clearBackgroundLockState();
     setState(() {
       _account = account;
       _isUnlocked = true;
@@ -161,6 +207,7 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
           account = await _accountStore.loadAccount() ?? account;
         }
       }
+      _clearBackgroundLockState();
       setState(() {
         _account = account ?? _account;
         _isUnlocked = true;
@@ -179,6 +226,7 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
     }
     final didAuthenticate = await _authenticateWithBiometrics();
     if (didAuthenticate && mounted) {
+      _clearBackgroundLockState();
       setState(() => _isUnlocked = true);
       _startRealtimeNotifications(account);
     }

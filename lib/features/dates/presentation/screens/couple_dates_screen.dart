@@ -136,41 +136,119 @@ class _CoupleDatesScreenState extends State<CoupleDatesScreen> {
       return;
     }
 
-    String message;
     try {
       final access =
           await CoupleDateNotificationService.requestProminentReminderAccess();
-      if (!access.notificationsAllowed) {
-        message =
-            'Notifications are off. Allow Panpanskii notifications in Android settings, then tap the bell again.';
-      } else {
-        await CoupleDateNotificationService.syncUpcomingPlans();
-        await CoupleDateNotificationService.showTestReminder();
-        if (access.prominentAlertsReady) {
-          message =
-              'Test alert sent. Exact full-screen date reminders are ready.';
-        } else if (!access.exactTimingAllowed && !access.fullScreenAllowed) {
-          message =
-              'Test alert sent. Android will use a large heads-up alert, but exact timing and full-screen access are still off.';
-        } else if (!access.exactTimingAllowed) {
-          message =
-              'Test alert sent. Full-screen alerts are ready, but delivery may be late until exact alarms are allowed.';
-        } else {
-          message =
-              'Test alert sent. Exact timing is ready; Android will use a large heads-up alert while full-screen access is off.';
-        }
+      if (!mounted) {
+        return;
       }
-    } catch (error) {
-      message = _friendlyError(error);
-    }
 
+      if (!access.notificationsAllowed) {
+        await _showReminderMessage(
+          title: 'Notifications are off',
+          message:
+              'Allow Panpanskii notifications in Android settings, then tap the bell again.',
+        );
+        return;
+      }
+
+      await CoupleDateNotificationService.syncUpcomingPlans();
+      if (!mounted) {
+        return;
+      }
+
+      if (!access.exactTimingAllowed) {
+        final runBasicTest = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Exact alarm access is off'),
+            content: const Text(
+              'Enable Alarms & reminders for an on-time alarm. You can still run a basic sound and vibration test now.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Close'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).pop(true),
+                icon: const Icon(Icons.notifications_active_rounded),
+                label: const Text('Basic test'),
+              ),
+            ],
+          ),
+        );
+        if (runBasicTest == true) {
+          await CoupleDateNotificationService.showTestReminder();
+        }
+        return;
+      }
+
+      final startTest = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Ready to test the alarm?'),
+          content: Text(
+            access.fullScreenAllowed
+                ? 'Tap Start test, then immediately lock the phone or put the app in the background. The alarm should ring, vibrate, and open as a full-screen alert after 8 seconds.'
+                : 'Tap Start test, then immediately put the app in the background. The alarm should ring and vibrate as a large heads-up alert after 8 seconds. Full-screen access is currently off.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.alarm_rounded),
+              label: const Text('Start test'),
+            ),
+          ],
+        ),
+      );
+      if (startTest != true || !mounted) {
+        return;
+      }
+
+      await CoupleDateNotificationService.scheduleTestReminder();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Alarm scheduled. Lock the phone or leave the app now.',
+          ),
+          duration: Duration(seconds: 5),
+        ),
+      );
+    } catch (error) {
+      await _showReminderMessage(
+        title: 'Reminder setup failed',
+        message: _friendlyError(error),
+      );
+    }
+  }
+
+  Future<void> _showReminderMessage({
+    required String title,
+    required String message,
+  }) async {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
         content: Text(message),
-        duration: const Duration(seconds: 6),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -834,6 +912,7 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
   late CoupleDateCategory _category;
   late CoupleDateVisibility _visibility;
   late CoupleDateReminder _reminder;
+  String? _savedPlanId;
   bool _isSaving = false;
   String? _error;
 
@@ -848,6 +927,7 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
     _time = TimeOfDay.fromDateTime(suggested);
     _category = plan?.category ?? CoupleDateCategory.date;
     _visibility = plan?.visibility ?? CoupleDateVisibility.shared;
+    _savedPlanId = plan?.id;
     _reminder = plan == null
         ? CoupleDateReminder.oneHour
         : CoupleDateReminder.fromMinutes(plan.reminderMinutes);
@@ -1029,6 +1109,17 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
       setState(() => _error = 'Choose a time that has not passed yet.');
       return;
     }
+    final reminderMinutes = _reminder.minutes;
+    if (reminderMinutes != null) {
+      final reminderAt = _startsAt.subtract(Duration(minutes: reminderMinutes));
+      if (!reminderAt.isAfter(DateTime.now())) {
+        setState(() {
+          _error =
+              'That reminder time has already passed. Choose At start time, a shorter reminder, or a later plan.';
+        });
+        return;
+      }
+    }
 
     setState(() {
       _isSaving = true;
@@ -1036,12 +1127,12 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
     });
     try {
       if (_reminder != CoupleDateReminder.none) {
-        final notificationsAllowed =
-            await CoupleDateNotificationService.requestNotificationPermission();
+        final access = await CoupleDateNotificationService
+            .requestProminentReminderAccess();
         if (!mounted) {
           return;
         }
-        if (!notificationsAllowed) {
+        if (!access.notificationsAllowed) {
           setState(() {
             _isSaving = false;
             _error =
@@ -1049,10 +1140,18 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
           });
           return;
         }
+        if (!access.exactTimingAllowed) {
+          setState(() {
+            _isSaving = false;
+            _error =
+                'Alarms & reminders access is off. Enable it for an on-time alarm, or choose No reminder.';
+          });
+          return;
+        }
       }
 
-      await widget.store.savePlan(
-        id: widget.plan?.id,
+      final savedPlan = await widget.store.savePlan(
+        id: _savedPlanId,
         account: widget.account,
         title: _titleController.text,
         notes: _notesController.text,
@@ -1061,6 +1160,12 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
         startsAt: _startsAt,
         reminderMinutes: _reminder.minutes,
       );
+      _savedPlanId = savedPlan.id;
+      if (savedPlan.reminderAt == null) {
+        await CoupleDateNotificationService.cancelPlan(savedPlan.id);
+      } else {
+        await CoupleDateNotificationService.schedulePlan(savedPlan);
+      }
       await CoupleDateNotificationService.syncUpcomingPlans();
       if (mounted) {
         Navigator.of(context).pop();
