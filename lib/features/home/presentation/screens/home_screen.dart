@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +15,8 @@ import '../../../auth/data/local_account_store.dart';
 import '../../../bible/data/daily_bible_notification_service.dart';
 import '../../../send_love/data/send_love_store.dart';
 import '../widgets/home_action_button.dart';
+import '../widgets/home_dashboard_cards.dart';
+import '../widgets/home_ui_kit.dart';
 import '../widgets/scene_widgets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -33,11 +35,53 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// The four shortcuts shown under "Quick Actions", in display order.
+const _kQuickActionOrder = <_HomeShortcut>[
+  _HomeShortcut.chat,
+  _HomeShortcut.sendLove,
+  _HomeShortcut.photoBooth,
+  _HomeShortcut.journal,
+];
+
+/// The personal note typed out under the panda portrait. Kept as a top-level
+/// constant so a test can assert the exact wording never changes.
+@visibleForTesting
+const String kHomePandaMessage =
+    'You are my cutiepatottie majoyskii, my panda and my favorite person in every tiny universe we make together.';
+
+/// The personal note typed out under the koala portrait.
+@visibleForTesting
+const String kHomeKoalaMessage =
+    'You are my cutie patootie naughty chanchanskii, my clingy koala, my comfort person, and my favorite place to call home';
+
+/// Exposes immutable dashboard route metadata to focused widget tests without
+/// booting the whole screen (and with it Supabase).
+@visibleForTesting
+class HomeDashboardTestAccess {
+  const HomeDashboardTestAccess._();
+
+  /// Title to route for every "Today Together" card.
+  static Map<String, String> get todayTogetherRoutes => {
+        for (final item in _TodayTogetherSection._items) item.title: item.route,
+      };
+
+  /// Label to route for every "Quick Actions" tile.
+  static Map<String, String> get quickActionRoutes => {
+        for (final shortcut in _kQuickActionOrder)
+          shortcut.label: shortcut.flaskPath,
+      };
+
+  /// Every label Home puts on screen, so a test can prove the "More" tab never
+  /// repeats one of them.
+  static Set<String> get homeLabels => {
+        ...todayTogetherRoutes.keys,
+        ...quickActionRoutes.keys,
+      };
+}
+
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  static const _pandaMessage =
-      'You are my cutiepatottie majoyskii, my panda and my favorite person in every tiny universe we make together.';
-  static const _koalaMessage =
-      'You are my cutie patootie naughty chanchanskii, my clingy koala, my comfort person, and my favorite place to call home';
+  static const _pandaMessage = kHomePandaMessage;
+  static const _koalaMessage = kHomeKoalaMessage;
   final _loveButtonKey = GlobalKey();
   final _sendLoveStore = SendLoveStore();
   final List<_LoveParticle> _particles = [];
@@ -257,15 +301,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 720),
-                    child: _buildHeroPanel(context)
-                        .animate()
-                        .fadeIn(duration: 420.ms, curve: Curves.easeOutCubic)
-                        .slideY(
-                          begin: 0.025,
-                          end: 0,
-                          duration: 420.ms,
-                          curve: Curves.easeOutCubic,
-                        ),
+                    child: _buildHeroPanel(context),
                   ),
                 ),
               ),
@@ -279,20 +315,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildHeroPanel(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 520;
-    const quickActionOrder = <_HomeShortcut>[
-      _HomeShortcut.chat,
-      _HomeShortcut.sendLove,
-      _HomeShortcut.photoBooth,
-      _HomeShortcut.journal,
-    ];
-    final actions = _HomeShortcut.values
-        .where(quickActionOrder.contains)
-        .toList(growable: false)
-      ..sort(
-        (left, right) => quickActionOrder
-            .indexOf(left)
-            .compareTo(quickActionOrder.indexOf(right)),
-      );
+    const actions = _kQuickActionOrder;
+
+    final sectionGap = compact ? 20.0 : 24.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,62 +327,89 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           isDarkMode: widget.isDarkMode,
           onToggleTheme: widget.onToggleTheme,
         ),
-        SizedBox(height: compact ? 12 : 16),
+        SizedBox(height: compact ? 10 : 14),
         _PixelHeroTitle(compact: compact, isDarkMode: widget.isDarkMode),
-        SizedBox(height: compact ? 12 : 16),
+        SizedBox(height: compact ? 12 : 14),
         _HomeConnectionCard(
           compact: compact,
           typedMessage: _typedMessage,
           cursorController: _cursorController,
           isDarkMode: widget.isDarkMode,
         ),
-        SizedBox(height: compact ? 22 : 26),
-        _ShortcutHeader(compact: compact),
-        SizedBox(height: compact ? 10 : 12),
-        _buildActionTray(actions, compact),
-        SizedBox(height: compact ? 22 : 26),
-        const _TodayTogetherSection(),
-        SizedBox(height: compact ? 22 : 26),
-        const _NextSharedActivitySection(),
-        const SizedBox(height: 8),
+        SizedBox(height: sectionGap),
+        _HomeSection(
+          index: 0,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const HomeSectionHeader(
+                title: 'Today Together',
+                icon: Icons.wb_twilight_outlined,
+              ),
+              SizedBox(height: compact ? 10 : 12),
+              const _TodayTogetherSection(),
+            ],
+          ),
+        ),
+        SizedBox(height: sectionGap),
+        _HomeSection(
+          index: 1,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const HomeSectionHeader(
+                title: 'Quick Actions',
+                icon: Icons.bolt_rounded,
+              ),
+              SizedBox(height: compact ? 10 : 12),
+              _buildActionTray(actions, compact),
+            ],
+          ),
+        ),
+        SizedBox(height: sectionGap),
+        _HomeSection(index: 2, child: const _NextSharedActivitySection()),
+        SizedBox(height: sectionGap),
+        // Everything else lives in the "More" tab, so Home never repeats it.
+        _HomeSection(index: 3, child: _ExploreMoreHint(compact: compact)),
+        const SizedBox(height: 12),
       ],
     );
   }
 
   Widget _buildActionTray(List<_HomeShortcut> shortcuts, bool compact) {
-    return SizedBox(
-      height: compact ? 112 : 122,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(bottom: 8),
-        itemCount: shortcuts.length,
-        separatorBuilder: (context, index) =>
-            SizedBox(width: compact ? 10 : 12),
-        itemBuilder: (context, index) {
-          final shortcut = shortcuts[index];
-          return SizedBox(
-            width: compact ? 104 : 118,
-            child: KeyedSubtree(
-              key: shortcut == _HomeShortcut.sendLove ? _loveButtonKey : null,
-              child: HomeActionButton(
-                label: shortcut.label,
-                glyph: shortcut.glyph,
-                gradient: shortcut.gradient,
-                textColor: shortcut.textColor,
-                shadowColor: shortcut.shadowColor,
-                onPressed: shortcut == _HomeShortcut.sendLove
-                    ? _sendLove
-                    : () => _selectNextScreen(shortcut),
-              ).animate(delay: (38 * index).ms).fadeIn(duration: 240.ms).scale(
-                    begin: const Offset(0.96, 0.96),
-                    end: const Offset(1, 1),
-                    duration: 260.ms,
-                    curve: Curves.easeOutBack,
-                  ),
-            ),
-          );
-        },
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = homeGridColumns(
+          context: context,
+          width: constraints.maxWidth,
+          minTileWidth: 150,
+          maxColumns: compact ? 2 : 4,
+        );
+
+        return HomeCardGrid(
+          columns: columns,
+          spacing: compact ? 10 : 12,
+          tileHeight: QuickActionCard.heightFor(context),
+          children: [
+            for (var index = 0; index < shortcuts.length; index += 1)
+              KeyedSubtree(
+                key: shortcuts[index] == _HomeShortcut.sendLove
+                    ? _loveButtonKey
+                    : null,
+                child: QuickActionCard(
+                  label: shortcuts[index].label,
+                  glyph: shortcuts[index].glyph,
+                  gradient: shortcuts[index].gradient,
+                  textColor: shortcuts[index].textColor,
+                  shadowColor: shortcuts[index].shadowColor,
+                  onPressed: shortcuts[index] == _HomeShortcut.sendLove
+                      ? _sendLove
+                      : () => _selectNextScreen(shortcuts[index]),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -1189,7 +1241,7 @@ class _Badge extends StatelessWidget {
             color: Color(0xFFFFE6A6),
             fontSize: 12.5,
             fontWeight: FontWeight.w900,
-            letterSpacing: 1,
+            letterSpacing: 0,
           ),
         ),
       ),
@@ -1699,23 +1751,178 @@ class _RetroTerminalMessage extends StatelessWidget {
   }
 }
 
-class _ShortcutHeader extends StatelessWidget {
-  const _ShortcutHeader({required this.compact});
+/// Fades each dashboard section in with a small stagger so the screen settles
+/// instead of appearing all at once.
+///
+/// It owns its controller and only ever plays once, so a live rebuild (the
+/// typing message, or a `StreamBuilder` delivering new plans) never restarts
+/// the entrance.
+class _HomeSection extends StatefulWidget {
+  const _HomeSection({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<_HomeSection> createState() => _HomeSectionState();
+}
+
+class _HomeSectionState extends State<_HomeSection>
+    with SingleTickerProviderStateMixin {
+  static const _duration = Duration(milliseconds: 300);
+
+  late final AnimationController _controller;
+  late final Animation<double> _curve;
+  Timer? _startTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: _duration);
+    _curve = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _startTimer = Timer(Duration(milliseconds: 70 * widget.index), () {
+      if (mounted) {
+        _controller.forward();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _startTimer?.cancel();
+      _controller.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _startTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _curve,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.04),
+          end: Offset.zero,
+        ).animate(_curve),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// A single pointer to the "More" tab.
+///
+/// Home used to mirror the whole "More" list here, which meant Love Letters,
+/// Mood Status, Daily Question and friends each rendered twice in the app. Home
+/// now owns "Today Together", "Quick Actions" and "Next Together"; everything
+/// else is reached through this one card.
+class _ExploreMoreHint extends StatelessWidget {
+  const _ExploreMoreHint({required this.compact});
 
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    const accent = Color(0xFFB8AEFF);
 
-    return Text(
-      'QUICK ACTIONS',
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: scheme.onSurfaceVariant,
-            fontSize: compact ? 11.5 : 12.5,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const HomeSectionHeader(
+          title: 'Explore Our Space',
+          icon: Icons.grid_view_rounded,
+        ),
+        SizedBox(height: compact ? 10 : 12),
+        Semantics(
+          button: true,
+          label: 'Explore our space. Open the More tab',
+          onTap: () => context.go('/more'),
+          child: ExcludeSemantics(
+            child: HomePressable(
+              onTap: () => context.go('/more'),
+              child: Ink(
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? scheme.surfaceContainerHighest.withValues(alpha: 0.48)
+                      : scheme.surface.withValues(alpha: 0.86),
+                  borderRadius: kHomeCardBorderRadius,
+                  border: Border.all(
+                    color: accent.withValues(alpha: isDark ? 0.28 : 0.32),
+                  ),
+                ),
+                child: Padding(
+                  padding: kHomeCardPadding,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: isDark ? 0.16 : 0.18),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.grid_view_rounded,
+                          size: 20,
+                          color: accent,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Everything else',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: scheme.onSurface,
+                                fontWeight: FontWeight.w800,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Letters, dates, thoughts and more live in the More tab',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                                fontSize: 11.5,
+                                height: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
+        ),
+      ],
     );
   }
 }
@@ -1828,58 +2035,36 @@ class _TodayTogetherSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = homeGridColumns(
+          context: context,
+          width: constraints.maxWidth,
+          minTileWidth: 150,
+          maxColumns: 2,
+        );
+        // Side by side the tiles are too narrow for the wide row form, so they
+        // stack the icon above the label instead. The odd fifth tile then keeps
+        // the same stacked shape while spanning the final row.
+        final stacked = columns > 1;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+        return HomeCardGrid(
+          columns: columns,
+          tileHeight: TodayTogetherCard.heightFor(context, stacked: stacked),
+          stretchLastRow: true,
           children: [
-            Icon(
-              Icons.wb_twilight_outlined,
-              size: 18,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Today Together',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
+            for (final item in _items)
+              TodayTogetherCard(
+                title: item.title,
+                subtitle: item.subtitle,
+                icon: item.icon,
+                accent: item.accent,
+                stacked: stacked,
+                onTap: () => context.push(item.route),
               ),
-            ),
           ],
-        ),
-        const SizedBox(height: 10),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final useTwoColumns = constraints.maxWidth >= 520;
-            if (!useTwoColumns) {
-              return Column(
-                children: [
-                  for (var index = 0; index < _items.length; index++) ...[
-                    _TodayTogetherTile(item: _items[index]),
-                    if (index != _items.length - 1) const SizedBox(height: 8),
-                  ],
-                ],
-              );
-            }
-
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _items.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 3.2,
-              ),
-              itemBuilder: (context, index) =>
-                  _TodayTogetherTile(item: _items[index]),
-            );
-          },
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -1898,85 +2083,6 @@ class _TodayTogetherItem {
   final String route;
   final IconData icon;
   final Color accent;
-}
-
-class _TodayTogetherTile extends StatelessWidget {
-  const _TodayTogetherTile({required this.item});
-
-  final _TodayTogetherItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Material(
-      color: isDark
-          ? const Color(0xFF1B1F26)
-          : theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: () => context.push(item.route),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 68),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: item.accent.withValues(alpha: isDark ? 0.26 : 0.34),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: item.accent.withValues(alpha: isDark ? 0.14 : 0.18),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                alignment: Alignment.center,
-                child: Icon(item.icon, size: 20, color: item.accent),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 19,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _NextSharedActivitySection extends StatefulWidget {
@@ -2022,94 +2128,33 @@ class _NextSharedActivityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final accent = plan == null
-        ? theme.colorScheme.onSurfaceVariant
+    final currentPlan = plan;
+    final accent = currentPlan == null
+        ? Theme.of(context).colorScheme.onSurfaceVariant
         : const Color(0xFFF0BF69);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Next Together',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+        const HomeSectionHeader(
+          title: 'Next Together',
+          icon: Icons.event_available_outlined,
         ),
-        const SizedBox(height: 10),
-        Material(
-          color: isDark
-              ? const Color(0xFF1B1F26)
-              : theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
+        const SizedBox(height: 12),
+        SizedBox(
+          height: TodayTogetherCard.heightFor(context),
+          child: TodayTogetherCard(
+            title: currentPlan?.title ?? 'No upcoming shared plan',
+            subtitle: currentPlan == null
+                ? 'Open Our Dates'
+                : '${currentPlan.category.label}  |  ${_formatNextActivityDate(currentPlan.startsAt)}',
+            icon: currentPlan == null
+                ? Icons.calendar_month_outlined
+                : Icons.event_available_outlined,
+            accent: accent,
+            // Live calendar information, so it gets the tinted, outlined form.
+            emphasized: true,
             onTap: () => context.push('/dates'),
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              width: double.infinity,
-              constraints: const BoxConstraints(minHeight: 68),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: accent.withValues(alpha: isDark ? 0.26 : 0.34),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: isDark ? 0.14 : 0.18),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      plan == null
-                          ? Icons.calendar_month_outlined
-                          : Icons.event_available_outlined,
-                      color: accent,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          plan?.title ?? 'No upcoming shared plan',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          plan == null
-                              ? 'Open Our Dates'
-                              : '${plan!.category.label}  |  ${_formatNextActivityDate(plan!.startsAt)}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 19,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ],
@@ -2143,7 +2188,18 @@ String _formatNextActivityDate(DateTime value) {
   return '${months[local.month - 1]} ${local.day}, $hour:$minute $period';
 }
 
+/// The Quick Actions tray. Every other feature is reached from the "More" tab,
+/// so this enum deliberately holds only the four shortcuts Home shows.
 enum _HomeShortcut {
+  chat(
+    'Private Chat',
+    '/private-chat',
+    LinearGradient(colors: [Color(0xFFB8AEFF), Color(0xFFE5E1FF)]),
+    Color(0xFF322A68),
+    Color(0xFF8C82D4),
+    HomeActionGlyph.chat,
+    'private_chat_messages',
+  ),
   sendLove(
     'Send Love',
     '/',
@@ -2152,15 +2208,6 @@ enum _HomeShortcut {
     Color(0xFFF06F93),
     HomeActionGlyph.heart,
     'send_love_letters',
-  ),
-  miniGame(
-    'Mini Game',
-    '/panpans-home',
-    LinearGradient(colors: [Color(0xFFD7F1E1), Color(0xFF9AD9B8)]),
-    Color(0xFF123427),
-    Color(0xFF5B9C77),
-    HomeActionGlyph.game,
-    null,
   ),
   photoBooth(
     'Photo Booth',
@@ -2171,51 +2218,6 @@ enum _HomeShortcut {
     HomeActionGlyph.camera,
     null,
   ),
-  wisdom(
-    'Communal Wisdom',
-    '/wisdom',
-    LinearGradient(colors: [Color(0xFFE5E1FF), Color(0xFFB8AEFF)]),
-    Color(0xFF322A68),
-    Color(0xFF8C82D4),
-    HomeActionGlyph.wisdom,
-    null,
-  ),
-  thoughts(
-    'Write Your Thoughts',
-    '/write-thoughts',
-    LinearGradient(colors: [Color(0xFFB8AEFF), Color(0xFFE5E1FF)]),
-    Color(0xFF322A68),
-    Color(0xFF8C82D4),
-    HomeActionGlyph.pencil,
-    'thought_posts',
-  ),
-  reminders(
-    'Reminders',
-    '/reminders',
-    LinearGradient(colors: [Color(0xFFFFDDE1), Color(0xFFE5E1FF)]),
-    Color(0xFF4A151E),
-    Color(0xFFC65A70),
-    HomeActionGlyph.reminder,
-    null,
-  ),
-  dates(
-    'Our Dates',
-    '/dates',
-    LinearGradient(colors: [Color(0xFFFFA0A9), Color(0xFFFFD166)]),
-    Color(0xFF4A151E),
-    Color(0xFFC65A70),
-    HomeActionGlyph.calendar,
-    null,
-  ),
-  question(
-    'Daily Question',
-    '/daily-question',
-    LinearGradient(colors: [Color(0xFFFFD166), Color(0xFFFFA66A)]),
-    Color(0xFF4B3210),
-    Color(0xFFC38D2E),
-    HomeActionGlyph.question,
-    null,
-  ),
   journal(
     'Shared Journal',
     '/shared-journal',
@@ -2224,42 +2226,6 @@ enum _HomeShortcut {
     Color(0xFF5B9C77),
     HomeActionGlyph.journal,
     'shared_journal_entries',
-  ),
-  letters(
-    'Love Letters',
-    '/love-letters',
-    LinearGradient(colors: [Color(0xFFFFDDE1), Color(0xFFFF7888)]),
-    Color(0xFF4A151E),
-    Color(0xFFC65A70),
-    HomeActionGlyph.letter,
-    'send_love_letters',
-  ),
-  chat(
-    'Private Chat',
-    '/private-chat',
-    LinearGradient(colors: [Color(0xFFB8AEFF), Color(0xFFE5E1FF)]),
-    Color(0xFF322A68),
-    Color(0xFF8C82D4),
-    HomeActionGlyph.chat,
-    'private_chat_messages',
-  ),
-  mood(
-    'Mood Status',
-    '/mood-status',
-    LinearGradient(colors: [Color(0xFFD7F1E1), Color(0xFFE5E1FF)]),
-    Color(0xFF123427),
-    Color(0xFF7B75BD),
-    HomeActionGlyph.mood,
-    'mood_statuses',
-  ),
-  bible(
-    'Bible Verses',
-    '/bible-verses',
-    LinearGradient(colors: [Color(0xFFE5E1FF), Color(0xFFD7F1E1)]),
-    Color(0xFF322A68),
-    Color(0xFF7B75BD),
-    HomeActionGlyph.bible,
-    null,
   );
 
   const _HomeShortcut(

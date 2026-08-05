@@ -3,6 +3,19 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/presentation/pan_ui.dart';
 
+/// Exposes the "More" tab entries so a test can prove they never repeat a card
+/// Home already shows.
+@visibleForTesting
+class MoreScreenTestAccess {
+  const MoreScreenTestAccess._();
+
+  /// Label to route for every tile in the "More" tab.
+  static Map<String, String> get routes => {
+        for (final group in _exploreGroups)
+          for (final item in group.items) item.label: item.route,
+      };
+}
+
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
@@ -158,6 +171,12 @@ class _ExploreItem {
   final Color color;
 }
 
+/// The "More" tab is the home for everything Home does *not* already show.
+///
+/// Home owns the daily rhythm ("Today Together" plus "Quick Actions"), so
+/// Magnetic Hearts, Daily Duo, Cozy Garden, Daily Question, Mood Status,
+/// Private Chat, Send Love, Photo Booth and Shared Journal deliberately do not
+/// repeat here. `HomeDashboardTestAccess.homeLabels` guards that split.
 const _exploreGroups = <_ExploreGroup>[
   _ExploreGroup('CONNECT', [
     _ExploreItem(
@@ -166,13 +185,6 @@ const _exploreGroups = <_ExploreGroup>[
       route: '/love-letters',
       icon: Icons.mark_email_read_rounded,
       color: Color(0xFFFF6F91),
-    ),
-    _ExploreItem(
-      label: 'Mood Status',
-      subtitle: 'Share how today feels',
-      route: '/mood-status',
-      icon: Icons.mood_rounded,
-      color: Color(0xFF43A878),
     ),
   ]),
   _ExploreGroup('MEMORIES', [
@@ -190,28 +202,12 @@ const _exploreGroups = <_ExploreGroup>[
       icon: Icons.edit_note_rounded,
       color: Color(0xFF8C82D4),
     ),
-  ]),
-  _ExploreGroup('PLAY AND GROW', [
     _ExploreItem(
-      label: 'Magnetic Hearts',
-      subtitle: 'Bring your hearts together in real time',
-      route: '/magnetic-hearts',
-      icon: Icons.join_inner_rounded,
-      color: Color(0xFFFF6FAD),
-    ),
-    _ExploreItem(
-      label: 'Daily Duo',
-      subtitle: 'Answer today\'s round together',
-      route: '/panpans-home',
-      icon: Icons.extension_rounded,
-      color: Color(0xFF4F8CC9),
-    ),
-    _ExploreItem(
-      label: 'Daily Question',
-      subtitle: 'One thoughtful prompt for today',
-      route: '/daily-question',
-      icon: Icons.question_answer_rounded,
-      color: Color(0xFFFFA84F),
+      label: 'Photo Gallery',
+      subtitle: 'Every strip you have taken together',
+      route: '/photobooth-gallery',
+      icon: Icons.photo_library_rounded,
+      color: Color(0xFFB891B8),
     ),
   ]),
   _ExploreGroup('REFLECT', [
