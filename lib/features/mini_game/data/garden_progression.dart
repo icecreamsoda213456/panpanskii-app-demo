@@ -6,16 +6,12 @@ class GardenPlantDefinition {
     required this.displayName,
     required this.icon,
     required this.unlockHint,
-    this.usesSunflowerFallback = false,
   });
 
   final String id;
   final String displayName;
   final IconData icon;
   final String unlockHint;
-
-  // Phase 2 ships no dedicated stage sprites beyond the existing sunflower art.
-  final bool usesSunflowerFallback;
 
   static const sunflower = GardenPlantDefinition(
     id: 'sunflower',
@@ -29,7 +25,6 @@ class GardenPlantDefinition {
     displayName: 'Sakura',
     icon: Icons.filter_vintage_rounded,
     unlockHint: 'Harvest your first flower',
-    usesSunflowerFallback: true,
   );
 
   static const tulip = GardenPlantDefinition(
@@ -37,7 +32,6 @@ class GardenPlantDefinition {
     displayName: 'Tulip',
     icon: Icons.local_florist_rounded,
     unlockHint: 'Reach a 7-day shared streak',
-    usesSunflowerFallback: true,
   );
 
   static const rose = GardenPlantDefinition(
@@ -45,7 +39,6 @@ class GardenPlantDefinition {
     displayName: 'Rose',
     icon: Icons.local_florist_rounded,
     unlockHint: 'Harvest 3 flowers',
-    usesSunflowerFallback: true,
   );
 
   static const lavender = GardenPlantDefinition(
@@ -53,7 +46,6 @@ class GardenPlantDefinition {
     displayName: 'Lavender',
     icon: Icons.spa_rounded,
     unlockHint: 'A future Daily Duo achievement',
-    usesSunflowerFallback: true,
   );
 
   static const legacyTree = GardenPlantDefinition(
@@ -61,7 +53,6 @@ class GardenPlantDefinition {
     displayName: 'Garden Tree',
     icon: Icons.park_rounded,
     unlockHint: 'Legacy garden plant',
-    usesSunflowerFallback: true,
   );
 
   static const all = <GardenPlantDefinition>[

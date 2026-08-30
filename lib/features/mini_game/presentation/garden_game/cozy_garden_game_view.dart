@@ -3,10 +3,32 @@ import 'package:flutter/material.dart';
 
 import 'cozy_garden_game.dart';
 
-class CozyGardenGameView extends StatelessWidget {
+class CozyGardenGameView extends StatefulWidget {
   const CozyGardenGameView({super.key, required this.game});
 
   final CozyGardenGame game;
+
+  @override
+  State<CozyGardenGameView> createState() => _CozyGardenGameViewState();
+}
+
+class _CozyGardenGameViewState extends State<CozyGardenGameView> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Mirror the platform "reduce motion" accessibility setting into the
+    // scene. The game instance itself is owned by CozyGardenScreen, so this
+    // widget never creates or disposes one.
+    widget.game.setReducedMotion(MediaQuery.disableAnimationsOf(context));
+  }
+
+  @override
+  void didUpdateWidget(CozyGardenGameView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.game, widget.game)) {
+      widget.game.setReducedMotion(MediaQuery.disableAnimationsOf(context));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,9 +59,12 @@ class CozyGardenGameView extends StatelessWidget {
             child: AspectRatio(
               aspectRatio: 1.2,
               child: GameWidget<CozyGardenGame>(
-                game: game,
+                game: widget.game,
                 loadingBuilder: _fallbackScene,
-                errorBuilder: (context, _) => _fallbackScene(context),
+                errorBuilder: (context, error) {
+                  debugPrint('Cozy Garden scene failed to load: $error');
+                  return _fallbackScene(context);
+                },
               ),
             ),
           ),
@@ -53,9 +78,10 @@ class CozyGardenGameView extends StatelessWidget {
       'assets/garden/garden_scene.png',
       fit: BoxFit.cover,
       filterQuality: FilterQuality.none,
-      errorBuilder: (context, error, stackTrace) => const ColoredBox(
-        color: Color(0xFFBDE3A5),
-      ),
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint('Cozy Garden fallback asset failed to load: $error');
+        return const ColoredBox(color: Color(0xFFBDE3A5));
+      },
     );
   }
 }

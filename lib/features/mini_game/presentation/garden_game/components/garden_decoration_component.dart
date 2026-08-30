@@ -24,28 +24,37 @@ class GardenDecorationComponent extends PositionComponent {
   final String decorationId;
   GardenTimeOfDay _timeOfDay;
   double _elapsed = 0;
+  bool _reducedMotion = false;
 
   void updateTimeOfDay(GardenTimeOfDay value) {
     _timeOfDay = value;
   }
 
+  void setReducedMotion(bool value) {
+    _reducedMotion = value;
+  }
+
   void layoutForScene(Vector2 sceneSize) {
     switch (decorationId) {
       case 'mushroom':
+        // Foreground-left cluster, clear of the plant's wider footprint.
         size.setValues(sceneSize.x * .1, sceneSize.x * .1);
-        position.setValues(sceneSize.x * .31, sceneSize.y * .885);
+        position.setValues(sceneSize.x * .25, sceneSize.y * .9);
         break;
       case 'lantern':
+        // Right edge, slightly higher so its glow reads as a back layer.
         size.setValues(sceneSize.x * .11, sceneSize.x * .18);
-        position.setValues(sceneSize.x * .89, sceneSize.y * .83);
+        position.setValues(sceneSize.x * .91, sceneSize.y * .825);
         break;
       case 'wooden_sign':
         size.setValues(sceneSize.x * .17, sceneSize.x * .16);
-        position.setValues(sceneSize.x * .12, sceneSize.y * .84);
+        position.setValues(sceneSize.x * .1, sceneSize.y * .845);
         break;
       case 'couple_bench':
-        size.setValues(sceneSize.x * .28, sceneSize.x * .13);
-        position.setValues(sceneSize.x * .66, sceneSize.y * .89);
+        // Mid-ground bench: narrower and pushed right so it tucks behind the
+        // plant instead of competing with it.
+        size.setValues(sceneSize.x * .24, sceneSize.x * .12);
+        position.setValues(sceneSize.x * .73, sceneSize.y * .875);
         break;
     }
   }
@@ -53,7 +62,7 @@ class GardenDecorationComponent extends PositionComponent {
   @override
   void update(double dt) {
     super.update(dt);
-    _elapsed += dt;
+    if (!_reducedMotion) _elapsed += dt;
   }
 
   @override
@@ -108,9 +117,10 @@ class GardenDecorationComponent extends PositionComponent {
       ..color = const Color(0xFF7B5D3C)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(1.5, size.x * .07).toDouble();
+    final flicker = _reducedMotion ? 0.0 : math.sin(_elapsed * 2.1);
     final glowStrength = switch (_timeOfDay) {
-      GardenTimeOfDay.night => .48 + math.sin(_elapsed * 2.1) * .15,
-      GardenTimeOfDay.sunset => .13 + math.sin(_elapsed * 2.1) * .04,
+      GardenTimeOfDay.night => .48 + flicker * .15,
+      GardenTimeOfDay.sunset => .13 + flicker * .04,
       GardenTimeOfDay.morning => 0.0,
       GardenTimeOfDay.day => 0.0,
     };

@@ -40,6 +40,7 @@ class CozyGardenGame extends FlameGame {
   bool _bothWatered = false;
   bool _pendingBothWateredCelebration = false;
   bool _isDisposed = false;
+  bool _reducedMotion = false;
   AccountMascot? _pendingWateringMascot;
   int _growth = 0;
   String _plantType = 'sunflower';
@@ -58,10 +59,18 @@ class CozyGardenGame extends FlameGame {
     await super.onLoad();
     final backgroundSprite =
         await _loadSprite('assets/garden/garden_scene.png');
+    if (_isDisposed) return;
     final plantSprites = <GardenGrowthStage, Sprite?>{};
     for (final stage in GardenGrowthStage.values) {
       plantSprites[stage] = await _loadSprite(stage.assetPath);
+      if (_isDisposed) return;
     }
+    final pippaSprite =
+        await _loadPetSprite('assets/pets/pippa/spritesheet.webp', 3);
+    if (_isDisposed) return;
+    final keboSprite =
+        await _loadPetSprite('assets/pets/kebo/spritesheet.webp', 4);
+    if (_isDisposed) return;
 
     _background = GardenBackgroundComponent(
       sceneSprite: backgroundSprite,
@@ -87,13 +96,13 @@ class CozyGardenGame extends FlameGame {
     _plant = MainPlantComponent(sprites: plantSprites);
     _pippa = GardenMascotComponent(
       name: 'Pippa',
-      sprite: await _loadPetSprite('assets/pets/pippa/spritesheet.webp', 3),
+      sprite: pippaSprite,
       fallbackColor: const Color(0xFFF5F2EA),
       isLeft: true,
     );
     _kebo = GardenMascotComponent(
       name: 'Kebo',
-      sprite: await _loadPetSprite('assets/pets/kebo/spritesheet.webp', 4),
+      sprite: keboSprite,
       fallbackColor: const Color(0xFFD5D3DD),
       isLeft: false,
     );
@@ -111,9 +120,15 @@ class CozyGardenGame extends FlameGame {
       _kebo!,
       _ambientParticles!,
     ]);
+    if (_isDisposed) {
+      dispose();
+      return;
+    }
     _loaded = true;
     _syncDecorations();
     _layoutScene();
+    // The widget layer may have reported reduce-motion before load finished.
+    _applyReducedMotionToComponents();
     _applyVisualState(animateGrowth: false);
     final pendingWateringMascot = _pendingWateringMascot;
     _pendingWateringMascot = null;
@@ -131,6 +146,11 @@ class CozyGardenGame extends FlameGame {
     super.update(dt);
     _timeCheckElapsed += dt;
     if (_timeCheckElapsed < 30) return;
+    refreshTimeOfDay();
+  }
+
+  void refreshTimeOfDay() {
+    if (_isDisposed) return;
     _timeCheckElapsed = 0;
     final nextTimeOfDay = gardenTimeOfDayFor(DateTime.now());
     if (nextTimeOfDay == _timeOfDay) return;
@@ -182,6 +202,27 @@ class CozyGardenGame extends FlameGame {
     }
   }
 
+  /// Mirrors the platform "reduce motion" setting supplied by the widget layer.
+  void setReducedMotion(bool value) {
+    if (_isDisposed || _reducedMotion == value) return;
+    _reducedMotion = value;
+    _applyReducedMotionToComponents();
+  }
+
+  void _applyReducedMotionToComponents() {
+    _leftCloud?.setReducedMotion(_reducedMotion);
+    _rightCloud?.setReducedMotion(_reducedMotion);
+    _butterfly?.setReducedMotion(_reducedMotion);
+    _bee?.setReducedMotion(_reducedMotion);
+    _plant?.setReducedMotion(_reducedMotion);
+    _pippa?.setReducedMotion(_reducedMotion);
+    _kebo?.setReducedMotion(_reducedMotion);
+    _ambientParticles?.setReducedMotion(_reducedMotion);
+    for (final decoration in _decorations.values) {
+      decoration.setReducedMotion(_reducedMotion);
+    }
+  }
+
   void playWatering(AccountMascot wateringMascot) {
     if (_isDisposed) return;
     if (!_loaded || size.x <= 0 || size.y <= 0) {
@@ -189,19 +230,27 @@ class CozyGardenGame extends FlameGame {
       return;
     }
     cancelWatering();
+    // Both mascots turn toward the plant for the duration of the pour.
+    _pippa?.setWatchingPlant(true);
+    _kebo?.setWatchingPlant(true);
     late final WateringEffectComponent effect;
     effect = WateringEffectComponent(
       sceneSize: size.clone(),
       target: Vector2(size.x * .5, size.y * .7),
+      reducedMotion: _reducedMotion,
       onWaterHit: () {
         _plant?.reactToWater();
         if (wateringMascot == AccountMascot.panda) {
-          _pippa?.celebrate();
-        } else {
+          _pippa?.cheer();
           _kebo?.celebrate();
+        } else {
+          _kebo?.cheer();
+          _pippa?.celebrate();
         }
       },
       onFinished: () {
+        _pippa?.setWatchingPlant(false);
+        _kebo?.setWatchingPlant(false);
         if (identical(_wateringEffect, effect)) _wateringEffect = null;
       },
     );
@@ -211,6 +260,8 @@ class CozyGardenGame extends FlameGame {
 
   void cancelWatering() {
     _pendingWateringMascot = null;
+    _pippa?.setWatchingPlant(false);
+    _kebo?.setWatchingPlant(false);
     _wateringEffect?.removeFromParent();
     _wateringEffect = null;
   }
@@ -218,8 +269,8 @@ class CozyGardenGame extends FlameGame {
   void playHarvestCelebration() {
     if (_isDisposed || !_loaded) return;
     _plant?.celebrate();
-    _pippa?.celebrate();
-    _kebo?.celebrate();
+    _pippa?.cheer();
+    _kebo?.cheer();
     _ambientParticles?.triggerCelebration();
   }
 
@@ -246,25 +297,51 @@ class CozyGardenGame extends FlameGame {
   }
 
   Future<Sprite?> _loadSprite(String path) async {
+    if (_isDisposed) return null;
     try {
-      final sprite = Sprite(await images.load(path));
+      final image = await images.load(path);
+      if (_isDisposed) {
+        if (images.containsKey(path)) {
+          images.clear(path);
+        } else {
+          image.dispose();
+        }
+        return null;
+      }
+      final sprite = Sprite(image);
       sprite.paint.filterQuality = FilterQuality.none;
       return sprite;
-    } catch (_) {
+    } catch (error) {
+      if (!_isDisposed) {
+        debugPrint('Cozy Garden could not load asset "$path": $error');
+      }
       return null;
     }
   }
 
   Future<Sprite?> _loadPetSprite(String path, int row) async {
+    if (_isDisposed) return null;
     try {
+      final image = await images.load(path);
+      if (_isDisposed) {
+        if (images.containsKey(path)) {
+          images.clear(path);
+        } else {
+          image.dispose();
+        }
+        return null;
+      }
       final sprite = Sprite(
-        await images.load(path),
+        image,
         srcPosition: Vector2(0, row * 208),
         srcSize: Vector2(192, 208),
       );
       sprite.paint.filterQuality = FilterQuality.none;
       return sprite;
-    } catch (_) {
+    } catch (error) {
+      if (!_isDisposed) {
+        debugPrint('Cozy Garden could not load pet asset "$path": $error');
+      }
       return null;
     }
   }
@@ -306,6 +383,7 @@ class CozyGardenGame extends FlameGame {
         decorationId: decorationId,
         timeOfDay: _timeOfDay,
       );
+      decoration.setReducedMotion(_reducedMotion);
       _decorations[decorationId] = decoration;
       add(decoration);
     }
@@ -323,6 +401,7 @@ class CozyGardenGame extends FlameGame {
     for (final decoration in _decorations.values) {
       decoration.updateTimeOfDay(_timeOfDay);
     }
+    _plant?.setPlantType(_plantType);
     _plant?.setStage(_stage);
     if (animateGrowth) _plant?.reactToGrowth();
     _pippa?.setWatered(_isMascotWatered(AccountMascot.panda));
@@ -332,8 +411,8 @@ class CozyGardenGame extends FlameGame {
     if (_pendingBothWateredCelebration) {
       _pendingBothWateredCelebration = false;
       _plant?.celebrate();
-      _pippa?.celebrate();
-      _kebo?.celebrate();
+      _pippa?.cheer();
+      _kebo?.cheer();
       _ambientParticles?.triggerCelebration();
     }
   }

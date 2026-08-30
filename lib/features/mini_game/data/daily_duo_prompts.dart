@@ -175,13 +175,22 @@ List<DailyDuoPrompt> _buildDailyDuoV2Prompts() {
     questions.add(prompt.question);
   }
 
-  for (var index = 0; index < _dailyDuoV2Packs.length; index += 1) {
-    final pack = _dailyDuoV2Packs[index];
-    assert(pack.id == index + 1);
-    assert(pack.questions.length == 5);
-    assert(pack.options.length == 4);
-    assert(pack.options.toSet().length == 4);
-    for (final question in pack.questions) {
+  // Each pack is one topic written five different ways with one answer set.
+  // Previously the packs were appended whole, so five consecutive days shared
+  // the same options and near-identical questions -- Daily Duo felt like it
+  // kept repeating itself. Build the pack portion by question-slot instead
+  // (every pack's first phrasing, then every second phrasing, ...), so
+  // consecutive days always land on a different pack: a different topic AND a
+  // different answer set. A topic's sibling phrasings come back ~359 days
+  // later instead of the very next day.
+  for (var slot = 0; slot < 5; slot += 1) {
+    for (var index = 0; index < _dailyDuoV2Packs.length; index += 1) {
+      final pack = _dailyDuoV2Packs[index];
+      assert(pack.id == index + 1);
+      assert(pack.questions.length == 5);
+      assert(pack.options.length == 4);
+      assert(pack.options.toSet().length == 4);
+      final question = pack.questions[slot];
       assert(question.endsWith('?'));
       assert(questions.add(question));
       prompts.add(DailyDuoPrompt(question: question, options: pack.options));

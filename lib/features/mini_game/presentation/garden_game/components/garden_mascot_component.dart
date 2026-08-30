@@ -18,8 +18,19 @@ class GardenMascotComponent extends PositionComponent {
   final Paint _pixelPaint = Paint()..filterQuality = FilterQuality.none;
 
   bool _watered = false;
+  bool _reducedMotion = false;
   double _elapsed = 0;
   double _reaction = 0;
+  double _attention = 0;
+  double _attentionTarget = 0;
+  double _hop = 0;
+
+  /// Each mascot animates on its own frequency so the pair never looks like a
+  /// single sprite mirrored twice.
+  double get _idlePhase => isLeft ? .2 : 2.35;
+  double get _breathRate => isLeft ? 1.35 : 1.12;
+  double get _bobRate => isLeft ? 1.05 : .87;
+  double get _wanderRate => isLeft ? .48 : .61;
 
   void layoutForScene(Vector2 sceneSize) {
     final mascotWidth = math.max(50, sceneSize.x * .19).toDouble();
@@ -39,11 +50,33 @@ class GardenMascotComponent extends PositionComponent {
     _reaction = 1;
   }
 
+  /// Short happy hop for a shared milestone (both watered / Daily Duo done).
+  void cheer() {
+    _reaction = 1;
+    _hop = 1;
+  }
+
+  /// Turns the mascot's gaze toward the plant while watering is playing.
+  void setWatchingPlant(bool value) {
+    _attentionTarget = value ? 1 : 0;
+  }
+
+  void setReducedMotion(bool value) {
+    _reducedMotion = value;
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
     _elapsed += dt;
     _reaction = math.max(0, _reaction - dt * 1.7).toDouble();
+    _hop = math.max(0, _hop - dt * 1.9).toDouble();
+    final attentionDelta = dt * 2.6;
+    if (_attention < _attentionTarget) {
+      _attention = math.min(_attentionTarget, _attention + attentionDelta);
+    } else if (_attention > _attentionTarget) {
+      _attention = math.max(_attentionTarget, _attention - attentionDelta);
+    }
   }
 
   @override
@@ -58,19 +91,26 @@ class GardenMascotComponent extends PositionComponent {
       shadow,
     );
 
-    final phase = isLeft ? .2 : .8;
+    final phase = _idlePhase;
     final base = Offset(size.x * .5, size.y * .88);
-    final idleScale = 1 + math.sin(_elapsed * 1.35 + phase) * .014;
+    final motion = _reducedMotion ? 0.0 : 1.0;
+    final idleScale =
+        1 + math.sin(_elapsed * _breathRate + phase) * .014 * motion;
     final reactionScale = 1 + math.sin(_reaction * math.pi) * .075;
-    final bob = math.sin(_elapsed * 1.05 + phase) * size.y * .009;
-    final wander = math.sin(_elapsed * .48 + phase) * size.x * .016;
+    final bob = math.sin(_elapsed * _bobRate + phase) * size.y * .009 * motion;
+    final hopLift = math.sin(_hop * math.pi) * size.y * .06;
+    final wander =
+        math.sin(_elapsed * _wanderRate + phase) * size.x * .016 * motion;
     final centerLean =
-        math.sin(_elapsed * .72 + phase) * .01 * (isLeft ? 1 : -1);
+        math.sin(_elapsed * .72 + phase) * .01 * (isLeft ? 1 : -1) * motion;
     final celebrationLean =
         math.sin(_reaction * math.pi) * .045 * (isLeft ? 1 : -1);
+    // Lean in toward the plant (scene centre) when watching it grow.
+    final watchLean = _attention * .12 * (isLeft ? 1 : -1);
+    final watchShift = _attention * size.x * .05 * (isLeft ? 1 : -1);
     canvas.save();
-    canvas.translate(base.dx + wander, base.dy + bob);
-    canvas.rotate(centerLean + celebrationLean);
+    canvas.translate(base.dx + wander + watchShift, base.dy + bob - hopLift);
+    canvas.rotate(centerLean + celebrationLean + watchLean);
     canvas.scale(idleScale * reactionScale);
     canvas.translate(-base.dx, -base.dy);
     final mascotSprite = sprite;

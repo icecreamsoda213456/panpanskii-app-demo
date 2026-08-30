@@ -49,40 +49,21 @@ class DailyDuoStore {
   static const _columns =
       'id, user_id, username, mascot, option_index, updated_at';
 
-  DailyDuoRound roundForNow() {
-    final now = DateTime.now();
-    final dayKey = _dayKey(now);
-    final parts = dayKey.split('-');
-    final effectiveDate = DateTime.utc(
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-      int.parse(parts[2]),
-    );
-    final v2Start = DateTime.utc(2026, 7, 28);
+  /// The first Manila day that uses the five-phrasing V2 prompt bank.
+  static final _v2Start = DateTime.utc(2026, 7, 28);
 
-    if (effectiveDate.isBefore(v2Start)) {
-      return _legacyRoundForNow();
-    }
-
-    return roundForDate(now);
-  }
+  DailyDuoRound roundForNow() => roundForDate(DateTime.now());
 
   DailyDuoRound roundForDate(DateTime date) {
-    final dayKey = _dayKey(date);
-    final parts = dayKey.split('-');
-    final effectiveDate = DateTime.utc(
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-      int.parse(parts[2]),
-    );
-    final v2Start = DateTime.utc(2026, 7, 28);
+    final effectiveDate = _effectiveManilaDate(date);
+    final dayKey = _formatDayKey(effectiveDate);
     late final DailyDuoPrompt selected;
 
-    if (effectiveDate.isBefore(v2Start)) {
+    if (effectiveDate.isBefore(_v2Start)) {
       selected = dailyDuoLegacyPrompts[
           _stableHash(dayKey) % dailyDuoLegacyPrompts.length];
     } else {
-      final dayIndex = effectiveDate.difference(v2Start).inDays;
+      final dayIndex = effectiveDate.difference(_v2Start).inDays;
       selected = dailyDuoV2Prompts[dayIndex % dailyDuoV2Prompts.length];
     }
 
@@ -90,16 +71,6 @@ class DailyDuoStore {
       dayKey: dayKey,
       prompt: selected.question,
       options: selected.options,
-    );
-  }
-
-  DailyDuoRound _legacyRoundForNow() {
-    final dayKey = _dayKey(DateTime.now());
-    final round = _duoRounds[_stableHash(dayKey) % _duoRounds.length];
-    return DailyDuoRound(
-      dayKey: dayKey,
-      prompt: round.prompt,
-      options: round.options,
     );
   }
 
@@ -141,9 +112,21 @@ class DailyDuoStore {
         .single();
   }
 
-  String _dayKey(DateTime date) {
-    final effectiveDate =
-        date.hour < 6 ? date.subtract(const Duration(days: 1)) : date;
+  /// Daily Duo days are keyed in Manila time (UTC+8) with a 6 AM threshold,
+  /// exactly like CozyGardenStore.todayKey. Both phones then always agree on
+  /// "today" even when their device clocks or timezones differ, so answers,
+  /// the realtime stream and the garden bonus all land on the same day instead
+  /// of one phone waiting forever for a partner answer that never appears.
+  ///
+  /// Returns the Manila calendar date as a UTC `DateTime`, so its `.year`,
+  /// `.month` and `.day` describe the Manila day while `.difference` stays
+  /// safe across every timezone the phones might use.
+  DateTime _effectiveManilaDate(DateTime date) {
+    final manilaNow = date.toUtc().add(const Duration(hours: 8));
+    return manilaNow.subtract(const Duration(hours: 6));
+  }
+
+  String _formatDayKey(DateTime effectiveDate) {
     final month = effectiveDate.month.toString().padLeft(2, '0');
     final day = effectiveDate.day.toString().padLeft(2, '0');
     return '${effectiveDate.year}-$month-$day';
@@ -154,167 +137,3 @@ class DailyDuoStore {
   }
 }
 
-class _DuoRoundTemplate {
-  const _DuoRoundTemplate({required this.prompt, required this.options});
-
-  final String prompt;
-  final List<String> options;
-}
-
-const _duoRounds = <_DuoRoundTemplate>[
-  _DuoRoundTemplate(
-    prompt: 'What would make today feel like a good day?',
-    options: ['A quiet day', 'A small adventure', 'Good food', 'Time together'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What do you need most right now?',
-    options: ['Rest', 'Encouragement', 'A laugh', 'A clear plan'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'How should we spend a free hour together?',
-    options: ['Talk', 'Watch something', 'Go outside', 'Make food'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What kind of support would feel best today?',
-    options: ['Listen to me', 'Make me laugh', 'Give me space', 'Help me plan'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'Which little joy should we make time for?',
-    options: ['Coffee or tea', 'Music', 'A walk', 'A cozy meal'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What helps you reset after a busy day?',
-    options: ['Silence', 'A shower', 'A hug', 'A favorite show'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What should we celebrate today?',
-    options: [
-      'Small progress',
-      'Our effort',
-      'A good moment',
-      'Just being here'
-    ],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What would make this week feel lighter?',
-    options: [
-      'Better sleep',
-      'Less pressure',
-      'More laughter',
-      'More time together'
-    ],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What is the best way to reconnect?',
-    options: [
-      'A real conversation',
-      'A shared meal',
-      'A walk',
-      'A little surprise'
-    ],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What should we protect more in our routine?',
-    options: ['Our rest', 'Our time', 'Our peace', 'Our fun'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What would you choose for a cozy night?',
-    options: ['A movie', 'A long talk', 'A board game', 'Early sleep'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What makes you feel most appreciated?',
-    options: ['Kind words', 'Quality time', 'Helpful actions', 'A surprise'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'Where would you rather spend a free afternoon?',
-    options: ['At home', 'In nature', 'Somewhere new', 'With good food'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What should we do when one of us feels stressed?',
-    options: ['Listen quietly', 'Give a hug', 'Make a plan', 'Give some space'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What kind of memory should we create soon?',
-    options: ['A food trip', 'A long walk', 'A small adventure', 'A lazy day'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What is the best way to start the weekend?',
-    options: ['Sleep in', 'Go out', 'Cook together', 'Finish errands'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'Which little thing can improve a difficult day?',
-    options: ['A message', 'A snack', 'A nap', 'A good laugh'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What would help us feel closer today?',
-    options: [
-      'Put phones away',
-      'Ask a real question',
-      'Share a meal',
-      'Go outside'
-    ],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What should our next mini adventure include?',
-    options: ['New food', 'A new place', 'A photo', 'A surprise plan'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'Which daily habit should we build together?',
-    options: [
-      'Morning check-in',
-      'Evening walk',
-      'Shared journal',
-      'Gratitude pause'
-    ],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What feels most comforting after a long day?',
-    options: ['Silence', 'A familiar voice', 'Warm food', 'A soft blanket'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What should we make more room for this month?',
-    options: ['Rest', 'Play', 'Honest talks', 'New experiences'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'If we could pause time for one hour, what would we do?',
-    options: ['Talk', 'Explore', 'Rest', 'Celebrate'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What makes teamwork feel easy for you?',
-    options: ['Clear plans', 'Patience', 'Shared effort', 'Encouragement'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What should we remember during a disagreement?',
-    options: ['We are a team', 'Listen first', 'Take a pause', 'Stay gentle'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What kind of day would you replay?',
-    options: [
-      'A peaceful day',
-      'A funny day',
-      'An adventurous day',
-      'A simple day'
-    ],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What is the sweetest way to reconnect after being busy?',
-    options: ['A hug', 'A voice call', 'A shared meal', 'A quiet moment'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What should we do more often without overthinking it?',
-    options: ['Take photos', 'Try new food', 'Say I love you', 'Take a walk'],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What kind of encouragement helps you keep going?',
-    options: [
-      'You can do this',
-      'I am here',
-      'Let us do it together',
-      'Take your time'
-    ],
-  ),
-  _DuoRoundTemplate(
-    prompt: 'What would make our home feel warmer?',
-    options: ['More music', 'More plants', 'More cooking', 'More laughter'],
-  ),
-];

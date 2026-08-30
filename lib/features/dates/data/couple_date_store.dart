@@ -156,6 +156,7 @@ class CoupleDateStore {
     required String notes,
     required CoupleDateCategory category,
     required CoupleDateVisibility visibility,
+    required CoupleDateVisibility? previousVisibility,
     required DateTime startsAt,
     required int? reminderMinutes,
   }) async {
@@ -210,6 +211,18 @@ class CoupleDateStore {
     }
 
     final plan = CoupleDatePlan.fromJson(row);
+    if (plan.isShared) {
+      await PushNotificationService.syncCoupleDateAlarm(
+        planId: plan.id,
+        action: 'upsert',
+      );
+    } else if (previousVisibility == CoupleDateVisibility.shared) {
+      // An edit from Shared to Personal must remove the partner's old alarm.
+      await PushNotificationService.syncCoupleDateAlarm(
+        planId: plan.id,
+        action: 'cancel',
+      );
+    }
     if (visibility == CoupleDateVisibility.shared) {
       await PushNotificationService.sendPush(
         type: 'couple_date',
@@ -223,6 +236,15 @@ class CoupleDateStore {
   Future<void> deletePlan(CoupleDatePlan plan) async {
     if (!plan.isMine) {
       throw StateError('Only the person who made this plan can delete it.');
+    }
+
+    if (plan.isShared) {
+      // Send the authenticated cancellation while the row still exists so the
+      // Edge Function can verify ownership before the delete.
+      await PushNotificationService.syncCoupleDateAlarm(
+        planId: plan.id,
+        action: 'cancel',
+      );
     }
 
     await supabase.from('couple_dates').delete().eq('id', plan.id);

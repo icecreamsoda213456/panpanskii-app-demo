@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,14 +25,13 @@ class _CozyGardenScreenState extends State<CozyGardenScreen>
     with WidgetsBindingObserver {
   final _store = CozyGardenStore();
   late final CozyGardenGame _gardenGame;
-  late final String _dayKey = _store.todayKey();
+  late String _dayKey;
   late final Stream<CozyGardenState> _gardenStream = _store.watchGarden();
-  late final Stream<List<CozyGardenAction>> _actionsStream =
-      _store.watchActions(_dayKey);
+  late Stream<List<CozyGardenAction>> _actionsStream;
   late final Stream<List<CozyGardenUnlock>> _unlocksStream =
       _store.watchUnlocks();
-  late final Stream<List<CozyGardenBonusEvent>> _bonusEventsStream =
-      _store.watchBonusEvents(_dayKey);
+  late Stream<List<CozyGardenBonusEvent>> _bonusEventsStream;
+  Timer? _dayRolloverTimer;
   bool _isWatering = false;
   bool _awaitingWaterConfirmation = false;
   bool _confirmationClearQueued = false;
@@ -41,12 +42,21 @@ class _CozyGardenScreenState extends State<CozyGardenScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _gardenGame = CozyGardenGame();
+    _dayKey = _store.todayKey();
+    _actionsStream = _store.watchActions(_dayKey);
+    _bonusEventsStream = _store.watchBonusEvents(_dayKey);
+    _dayRolloverTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _refreshGardenDayIfNeeded(),
+    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
+        _refreshGardenDayIfNeeded();
+        _gardenGame.refreshTimeOfDay();
         _gardenGame.resumeEngine();
       case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
@@ -59,6 +69,7 @@ class _CozyGardenScreenState extends State<CozyGardenScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _dayRolloverTimer?.cancel();
     _gardenGame.pauseEngine();
     _gardenGame.cancelWatering();
     super.dispose();
@@ -66,18 +77,23 @@ class _CozyGardenScreenState extends State<CozyGardenScreen>
 
   Future<void> _waterGarden() async {
     if (_isWatering || _awaitingWaterConfirmation) return;
+    _refreshGardenDayIfNeeded();
+    final requestDayKey = _dayKey;
     setState(() => _isWatering = true);
     _gardenGame.playWatering(widget.account.mascot);
     try {
-      await _store.waterGarden(account: widget.account, dayKey: _dayKey);
-      if (!mounted) return;
+      await _store.waterGarden(
+        account: widget.account,
+        dayKey: requestDayKey,
+      );
+      if (!mounted || requestDayKey != _dayKey) return;
       setState(() {
         _isWatering = false;
         _awaitingWaterConfirmation = true;
       });
     } catch (error) {
+      if (!mounted || requestDayKey != _dayKey) return;
       _gardenGame.cancelWatering();
-      if (!mounted) return;
       setState(() {
         _isWatering = false;
         _awaitingWaterConfirmation = false;
@@ -87,6 +103,22 @@ class _CozyGardenScreenState extends State<CozyGardenScreen>
         SnackBar(content: Text(message)),
       );
     }
+  }
+
+  void _refreshGardenDayIfNeeded() {
+    if (!mounted) return;
+    final nextDayKey = _store.todayKey();
+    if (nextDayKey == _dayKey) return;
+
+    _gardenGame.cancelWatering();
+    setState(() {
+      _dayKey = nextDayKey;
+      _actionsStream = _store.watchActions(nextDayKey);
+      _bonusEventsStream = _store.watchBonusEvents(nextDayKey);
+      _isWatering = false;
+      _awaitingWaterConfirmation = false;
+      _confirmationClearQueued = false;
+    });
   }
 
   Future<void> _openHarvestSeedPicker(
@@ -157,12 +189,14 @@ class _CozyGardenScreenState extends State<CozyGardenScreen>
               );
             }
             return StreamBuilder<List<CozyGardenAction>>(
+              key: ValueKey('cozy-garden-actions-$_dayKey'),
               stream: _actionsStream,
               builder: (context, actionSnapshot) {
                 return StreamBuilder<List<CozyGardenUnlock>>(
                   stream: _unlocksStream,
                   builder: (context, unlockSnapshot) {
                     return StreamBuilder<List<CozyGardenBonusEvent>>(
+                      key: ValueKey('cozy-garden-bonuses-$_dayKey'),
                       stream: _bonusEventsStream,
                       builder: (context, bonusSnapshot) {
                         final garden =
@@ -174,12 +208,14 @@ class _CozyGardenScreenState extends State<CozyGardenScreen>
                         final bonusEvents = bonusSnapshot.data ??
                             const <CozyGardenBonusEvent>[];
                         final currentUserId = supabase.auth.currentUser?.id;
-                        final hasWatered = actions.any(
-                          (action) => action.userId == currentUserId,
-                        );
-                        final partnerWatered = actions.any(
-                          (action) => action.userId != currentUserId,
-                        );
+                        final hasWatered = currentUserId != null &&
+                            actions.any(
+                              (action) => action.userId == currentUserId,
+                            );
+                        final partnerWatered = currentUserId != null &&
+                            actions.any(
+                              (action) => action.userId != currentUserId,
+                            );
                         _confirmPendingWatering(hasWatered);
                         final partnerMascot = _partnerMascotFromActions(
                           actions: actions,
@@ -601,9 +637,11 @@ class _CozyGardenScreenState extends State<CozyGardenScreen>
       return;
     }
     _confirmationClearQueued = true;
+    final confirmationDayKey = _dayKey;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || confirmationDayKey != _dayKey) return;
       _confirmationClearQueued = false;
-      if (!mounted || !_awaitingWaterConfirmation) return;
+      if (!_awaitingWaterConfirmation) return;
       setState(() => _awaitingWaterConfirmation = false);
     });
   }
@@ -1100,24 +1138,28 @@ class _GardenBookSheetState extends State<_GardenBookSheet> {
                       children: [
                         Icon(Icons.menu_book_rounded, color: scheme.secondary),
                         const SizedBox(width: 9),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Our Garden',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w900),
-                            ),
-                            Text(
-                              'A shared collection of every bloom',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: scheme.onSurfaceVariant),
-                            ),
-                          ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Our Garden',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                              Text(
+                                'A shared collection of every bloom',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),

@@ -186,6 +186,13 @@ const _exploreGroups = <_ExploreGroup>[
       icon: Icons.mark_email_read_rounded,
       color: Color(0xFFFF6F91),
     ),
+    _ExploreItem(
+      label: 'Widget Note',
+      subtitle: 'Draw a note for their home screen',
+      route: '/widget-notes',
+      icon: Icons.draw_rounded,
+      color: Color(0xFF43A878),
+    ),
   ]),
   _ExploreGroup('MEMORIES', [
     _ExploreItem(

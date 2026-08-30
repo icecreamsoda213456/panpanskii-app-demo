@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as timezone;
 
@@ -24,6 +25,12 @@ class CoupleDateReminderAccess {
 }
 
 class CoupleDateNotificationService {
+  static const remoteSyncType = 'couple_date_alarm_sync';
+  static const _remoteUpsertAction = 'upsert';
+  static const _remoteCancelAction = 'cancel';
+  static const _remoteSyncVersionKeyPrefix =
+      'panpanskii_couple_date_sync_version_';
+
   // Android channel alert settings are immutable after first creation, so a
   // new channel id reliably enables sound and vibration for existing installs.
   static const _channelId = 'couple_date_alarm_reminders_v4';
@@ -79,6 +86,12 @@ class CoupleDateNotificationService {
       final desired = <int, CoupleDatePlan>{};
 
       for (final plan in plans) {
+        // RLS already applies this rule. Keep the same guard on-device so a
+        // personal plan can never be scheduled for the other account even if
+        // a malformed or stale row reaches the client.
+        if (!plan.isShared && !plan.isMine) {
+          continue;
+        }
         final reminderAt = plan.reminderAt;
         if (reminderAt == null || !reminderAt.isAfter(now)) {
           continue;
@@ -252,6 +265,99 @@ class CoupleDateNotificationService {
     if (!pending.any((request) => request.id == _testNotificationId)) {
       throw StateError('Android did not keep the scheduled alarm test.');
     }
+  }
+
+  static Future<bool> handleRemotePushData(
+    Map<String, dynamic> data,
+  ) async {
+    if (data['type']?.toString() != remoteSyncType) {
+      return false;
+    }
+
+    final planId = data['plan_id']?.toString().trim() ?? '';
+    if (planId.isEmpty) {
+      return true;
+    }
+
+    final syncVersion =
+        DateTime.tryParse(data['sync_version']?.toString() ?? '');
+    if (syncVersion == null ||
+        !await _acceptRemoteSyncVersion(planId, syncVersion)) {
+      return true;
+    }
+
+    final action = data['action']?.toString();
+    if (action == _remoteCancelAction) {
+      await cancelPlan(planId);
+      return true;
+    }
+
+    // Only authoritative shared-plan payloads may create an alarm on the
+    // partner phone. Anything else removes a possibly stale local alarm.
+    if (action != _remoteUpsertAction ||
+        data['visibility']?.toString() != CoupleDateVisibility.shared.name) {
+      await cancelPlan(planId);
+      return true;
+    }
+
+    final startsAt = DateTime.tryParse(data['starts_at']?.toString() ?? '');
+    final reminderText = data['reminder_minutes']?.toString() ?? '';
+    final reminderMinutes = int.tryParse(reminderText);
+    if (startsAt == null ||
+        reminderMinutes == null ||
+        !const {0, 10, 60, 1440}.contains(reminderMinutes)) {
+      await cancelPlan(planId);
+      return true;
+    }
+
+    final createdAt = DateTime.tryParse(data['created_at']?.toString() ?? '') ??
+        DateTime.now().toUtc();
+    final updatedAt =
+        DateTime.tryParse(data['updated_at']?.toString() ?? '') ?? createdAt;
+    final plan = CoupleDatePlan.fromJson({
+      'id': planId,
+      'user_id': data['user_id']?.toString() ?? '',
+      'username': data['username']?.toString() ?? 'your person',
+      'mascot': data['mascot']?.toString() ?? 'panda',
+      'title': data['title']?.toString() ?? 'Our plan',
+      // Notes stay in Supabase and are loaded under RLS when the app opens.
+      // Omitting them keeps the high-priority FCM data payload compact.
+      'notes': '',
+      'category': data['category']?.toString() ?? 'other',
+      'visibility': CoupleDateVisibility.shared.name,
+      'starts_at': startsAt.toUtc().toIso8601String(),
+      'reminder_minutes': reminderMinutes,
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
+    });
+
+    final reminderAt = plan.reminderAt;
+    if (reminderAt == null || !reminderAt.isAfter(DateTime.now())) {
+      await cancelPlan(planId);
+      return true;
+    }
+
+    try {
+      await schedulePlan(plan);
+    } catch (_) {
+      // A normal foreground/app-start sync will retry when the app next opens.
+    }
+    return true;
+  }
+
+  static Future<bool> _acceptRemoteSyncVersion(
+    String planId,
+    DateTime incomingVersion,
+  ) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.reload();
+    final key = '$_remoteSyncVersionKeyPrefix$planId';
+    final savedVersion = DateTime.tryParse(preferences.getString(key) ?? '');
+    if (savedVersion != null && !incomingVersion.isAfter(savedVersion)) {
+      return false;
+    }
+    await preferences.setString(key, incomingVersion.toUtc().toIso8601String());
+    return true;
   }
 
   static Future<void> _schedule(int id, CoupleDatePlan plan) async {

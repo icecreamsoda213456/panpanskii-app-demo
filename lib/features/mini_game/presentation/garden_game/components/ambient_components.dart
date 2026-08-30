@@ -18,6 +18,7 @@ class GardenCloudComponent extends PositionComponent {
   Vector2 _sceneSize = Vector2.zero();
   GardenTimeOfDay _timeOfDay = GardenTimeOfDay.day;
   bool _hasLaidOut = false;
+  bool _reducedMotion = false;
 
   void layoutForScene(Vector2 sceneSize) {
     _sceneSize = sceneSize.clone();
@@ -35,10 +36,14 @@ class GardenCloudComponent extends PositionComponent {
     _timeOfDay = value;
   }
 
+  void setReducedMotion(bool value) {
+    _reducedMotion = value;
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
-    if (_sceneSize.x <= 0) return;
+    if (_reducedMotion || _sceneSize.x <= 0) return;
     final timeMultiplier = switch (_timeOfDay) {
       GardenTimeOfDay.morning => .68,
       GardenTimeOfDay.day => 1.0,
@@ -78,16 +83,27 @@ class GardenButterflyComponent extends PositionComponent {
 
   Vector2 _sceneSize = Vector2.zero();
   double _elapsed = 0;
+  bool _reducedMotion = false;
 
   void layoutForScene(Vector2 sceneSize) {
     _sceneSize = sceneSize.clone();
     final wingSpan = math.max(13, sceneSize.x * .05).toDouble();
     size.setValues(wingSpan, wingSpan * .58);
+    if (_reducedMotion) _setRestingPosition();
+  }
+
+  void setReducedMotion(bool value) {
+    _reducedMotion = value;
+    if (value) _setRestingPosition();
   }
 
   @override
   void update(double dt) {
     super.update(dt);
+    if (_reducedMotion) {
+      _setRestingPosition();
+      return;
+    }
     _elapsed += dt;
     if (_sceneSize.x <= 0) return;
     position.setValues(
@@ -98,7 +114,7 @@ class GardenButterflyComponent extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
-    final flap = math.sin(_elapsed * 9).abs();
+    final flap = _reducedMotion ? .7 : math.sin(_elapsed * 9).abs();
     final wing = Paint()
       ..color = flap > .45 ? const Color(0xFFFFB1C7) : const Color(0xFFFFD46D);
     final body = Paint()..color = const Color(0xFF5D4843);
@@ -115,6 +131,11 @@ class GardenButterflyComponent extends PositionComponent {
       body,
     );
   }
+
+  void _setRestingPosition() {
+    if (_sceneSize.x <= 0) return;
+    position.setValues(_sceneSize.x * .67, _sceneSize.y * .3);
+  }
 }
 
 class GardenBeeComponent extends PositionComponent {
@@ -123,20 +144,31 @@ class GardenBeeComponent extends PositionComponent {
   Vector2 _sceneSize = Vector2.zero();
   bool _active = false;
   double _elapsed = 0;
+  bool _reducedMotion = false;
 
   void layoutForScene(Vector2 sceneSize) {
     _sceneSize = sceneSize.clone();
     final width = math.max(11, sceneSize.x * .04).toDouble();
     size.setValues(width, width * .75);
+    if (_reducedMotion) _setRestingPosition();
   }
 
   void setActive(bool value) {
     _active = value;
   }
 
+  void setReducedMotion(bool value) {
+    _reducedMotion = value;
+    if (value) _setRestingPosition();
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
+    if (_reducedMotion) {
+      _setRestingPosition();
+      return;
+    }
     _elapsed += dt;
     if (!_active || _sceneSize.x <= 0) return;
     position.setValues(
@@ -172,6 +204,11 @@ class GardenBeeComponent extends PositionComponent {
       stripe,
     );
   }
+
+  void _setRestingPosition() {
+    if (_sceneSize.x <= 0) return;
+    position.setValues(_sceneSize.x * .63, _sceneSize.y * .52);
+  }
 }
 
 class GardenAmbientParticles extends PositionComponent {
@@ -179,6 +216,7 @@ class GardenAmbientParticles extends PositionComponent {
 
   GardenTimeOfDay _timeOfDay = GardenTimeOfDay.day;
   int _growth = 0;
+  bool _reducedMotion = false;
   double _elapsed = 0;
   double _celebration = 0;
 
@@ -195,6 +233,12 @@ class GardenAmbientParticles extends PositionComponent {
     _growth = growth;
   }
 
+  /// When reduced motion is requested we keep the ambient layer visible but
+  /// stop the continuous drifting animation.
+  void setReducedMotion(bool value) {
+    _reducedMotion = value;
+  }
+
   void triggerCelebration() {
     _celebration = 1.25;
   }
@@ -202,7 +246,9 @@ class GardenAmbientParticles extends PositionComponent {
   @override
   void update(double dt) {
     super.update(dt);
-    _elapsed += dt;
+    // Celebrations still resolve under reduced motion, but the idle drift
+    // clock is frozen so nothing loops forever on screen.
+    if (!_reducedMotion) _elapsed += dt;
     _celebration = math.max(0, _celebration - dt).toDouble();
   }
 

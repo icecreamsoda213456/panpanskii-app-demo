@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
@@ -21,14 +23,48 @@ class DailyDuoScreen extends StatefulWidget {
 class _DailyDuoScreenState extends State<DailyDuoScreen> {
   final _store = DailyDuoStore();
   final _gardenStore = CozyGardenStore();
-  late final DailyDuoRound _round = _store.roundForNow();
-  late final Stream<List<DailyDuoAnswer>> _answersStream =
+  late DailyDuoRound _round = _store.roundForNow();
+  late Stream<List<DailyDuoAnswer>> _answersStream =
       _store.watchAnswers(_round.dayKey);
+  Timer? _dayRolloverTimer;
   bool _isSubmitting = false;
   int? _pendingOption;
   bool _isClaimingGardenBonus = false;
   bool _gardenBonusClaimQueued = false;
   DailyDuoGardenBonusResult? _gardenBonus;
+
+  @override
+  void initState() {
+    super.initState();
+    // Re-check the current round so a day that flips while this screen stays
+    // open (6 AM Manila boundary) rolls over instead of freezing the user on
+    // yesterday's question forever.
+    _dayRolloverTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _handleDayRollover(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _dayRolloverTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleDayRollover() {
+    if (!mounted) return;
+    final nextRound = _store.roundForNow();
+    if (nextRound.dayKey == _round.dayKey) return;
+    setState(() {
+      _round = nextRound;
+      _answersStream = _store.watchAnswers(nextRound.dayKey);
+      _pendingOption = null;
+      _isSubmitting = false;
+      _gardenBonus = null;
+      _gardenBonusClaimQueued = false;
+      _isClaimingGardenBonus = false;
+    });
+  }
 
   Future<void> _submitAnswer(int optionIndex) async {
     if (_isSubmitting) return;
@@ -36,13 +72,16 @@ class _DailyDuoScreenState extends State<DailyDuoScreen> {
       _isSubmitting = true;
       _pendingOption = optionIndex;
     });
+    // Capture the day this answer belongs to so a 6 AM rollover in the middle
+    // of the write can never claim the garden bonus for the wrong day.
+    final round = _round;
     try {
       await _store.submitAnswer(
         account: widget.account,
-        round: _round,
+        round: round,
         optionIndex: optionIndex,
       );
-      await _claimGardenBonus();
+      await _claimGardenBonus(dayKey: round.dayKey);
     } catch (error) {
       if (!mounted) return;
       setState(() => _pendingOption = null);
@@ -55,14 +94,14 @@ class _DailyDuoScreenState extends State<DailyDuoScreen> {
     }
   }
 
-  Future<void> _claimGardenBonus() async {
+  Future<void> _claimGardenBonus({required String dayKey}) async {
     if (_isClaimingGardenBonus) return;
     if (mounted) setState(() => _isClaimingGardenBonus = true);
     try {
-      final result = await _gardenStore.claimDailyDuoBonus(
-        dayKey: _round.dayKey,
-      );
-      if (!mounted) return;
+      final result = await _gardenStore.claimDailyDuoBonus(dayKey: dayKey);
+      // The day may have rolled over while the RPC was in flight; discard a
+      // stale reward so yesterday's bonus never flashes on today's round.
+      if (!mounted || dayKey != _round.dayKey) return;
       setState(() => _gardenBonus = result);
     } catch (_) {
       // Realtime will retry after both answers and the Phase 2 RPC are ready.
@@ -82,7 +121,7 @@ class _DailyDuoScreenState extends State<DailyDuoScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _gardenBonusClaimQueued = false;
       if (!mounted || _isClaimingGardenBonus) return;
-      _claimGardenBonus();
+      _claimGardenBonus(dayKey: _round.dayKey);
     });
   }
 
@@ -159,7 +198,11 @@ class _DailyDuoScreenState extends State<DailyDuoScreen> {
                     sliver: SliverToBoxAdapter(
                       child: Column(
                         children: [
-                          _DuoStatusCard(mine: mine, partner: partner),
+                          _DuoStatusCard(
+                            round: _round,
+                            mine: mine,
+                            partner: partner,
+                          ),
                           if (_gardenBonus?.isComplete == true &&
                               _gardenBonus!.totalDayBonus > 0) ...[
                             const SizedBox(height: 10),
@@ -257,7 +300,11 @@ class _DuoPromptCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final hasAnswered = mine != null || pendingOption != null;
+    final isSavingNewAnswer = mine == null && pendingOption != null;
+    final bothAnswered = mine != null && partner != null;
+    final showLocked = isSavingNewAnswer || bothAnswered;
+    final canChangeAnswer = mine != null && partner == null;
+    final selectedOption = mine?.optionIndex ?? pendingOption;
     return PanGlassCard(
       accentColor: const Color(0xFFFF7888),
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
@@ -289,7 +336,12 @@ class _DuoPromptCard extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 15),
-          if (!hasAnswered)
+          if (showLocked)
+            _LockedAnswer(
+              label: round.options[mine?.optionIndex ?? pendingOption ?? 0],
+              isPending: pendingOption != null,
+            )
+          else ...[
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -303,15 +355,23 @@ class _DuoPromptCard extends StatelessWidget {
               itemBuilder: (context, index) => _DuoOptionButton(
                 label: round.options[index],
                 index: index,
+                isSelected: selectedOption == index,
                 disabled: isSubmitting,
                 onTap: () => onSelect(index),
               ),
-            )
-          else
-            _LockedAnswer(
-              label: round.options[mine?.optionIndex ?? pendingOption ?? 0],
-              isPending: mine == null,
             ),
+            if (canChangeAnswer) ...[
+              const SizedBox(height: 10),
+              Text(
+                'You can still change your answer until your person answers.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ],
         ],
       ),
     ).animate().fadeIn(duration: 300.ms).slideY(begin: .04, end: 0);
@@ -382,29 +442,33 @@ class _DuoMascot extends StatelessWidget {
   }
 }
 
+/// Color per answer slot, shared by the option buttons.
+const _duoOptionColors = <Color>[
+  Color(0xFFFFC857),
+  Color(0xFF72D6A0),
+  Color(0xFFFF9F68),
+  Color(0xFF9C8CFF),
+];
+
 class _DuoOptionButton extends StatelessWidget {
   const _DuoOptionButton({
     required this.label,
     required this.index,
+    this.isSelected = false,
     required this.disabled,
     required this.onTap,
   });
 
   final String label;
   final int index;
+  final bool isSelected;
   final bool disabled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final colors = [
-      const Color(0xFFFFC857),
-      const Color(0xFF72D6A0),
-      const Color(0xFFFF9F68),
-      const Color(0xFF9C8CFF),
-    ];
-    final accent = colors[index % colors.length];
+    final accent = _duoOptionColors[index % _duoOptionColors.length];
     return InkWell(
       onTap: disabled ? null : onTap,
       borderRadius: BorderRadius.circular(15),
@@ -413,19 +477,33 @@ class _DuoOptionButton extends StatelessWidget {
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: accent.withValues(alpha: .15),
+          color: accent.withValues(alpha: isSelected ? .32 : .15),
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: accent.withValues(alpha: .65)),
+          border: Border.all(
+            color: isSelected ? accent : accent.withValues(alpha: .65),
+            width: isSelected ? 2 : 1,
+          ),
         ),
-        child: Text(
-          label,
-          maxLines: 2,
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: scheme.onSurface,
-                fontWeight: FontWeight.w900,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (isSelected) ...[
+              Icon(Icons.check_circle_rounded, color: accent, size: 16),
+              const SizedBox(width: 5),
+            ],
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w900,
+                    ),
               ),
+            ),
+          ],
         ),
       ),
     );
@@ -474,8 +552,13 @@ class _LockedAnswer extends StatelessWidget {
 }
 
 class _DuoStatusCard extends StatelessWidget {
-  const _DuoStatusCard({required this.mine, required this.partner});
+  const _DuoStatusCard({
+    required this.round,
+    required this.mine,
+    required this.partner,
+  });
 
+  final DailyDuoRound round;
   final DailyDuoAnswer? mine;
   final DailyDuoAnswer? partner;
 
@@ -484,16 +567,20 @@ class _DuoStatusCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final bothAnswered = mine != null && partner != null;
     final matched = bothAnswered && mine!.optionIndex == partner!.optionIndex;
-    final title = !bothAnswered
-        ? 'Waiting for your person'
-        : matched
-            ? 'Perfect match!'
-            : 'Different answers, same team';
-    final message = !bothAnswered
-        ? 'Your answer is saved. The result will appear when the other phone answers.'
-        : matched
-            ? 'You both picked the same answer today. That deserves a little celebration.'
-            : 'You chose different answers. Compare them in private chat and see why.';
+    final title = mine == null
+        ? 'Waiting for you'
+        : partner == null
+            ? 'Waiting for your person'
+            : matched
+                ? 'Perfect match!'
+                : 'Different answers, same team';
+    final message = mine == null
+        ? 'Pick an answer above to join today\'s duo round.'
+        : partner == null
+            ? 'Your answer is saved and you can still change it. The result appears when the other phone answers.'
+            : matched
+                ? 'You both picked the same answer today. That deserves a little celebration.'
+                : 'You chose different answers. Compare them in private chat and see why.';
     return PanGlassCard(
       accentColor:
           bothAnswered && matched ? const Color(0xFFFFC857) : scheme.secondary,
@@ -531,10 +618,60 @@ class _DuoStatusCard extends StatelessWidget {
                         height: 1.35,
                       ),
                 ),
+                if (bothAnswered) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _ChoicePill(
+                        label: '${mine!.username}: '
+                            '${round.options[mine!.optionIndex]}',
+                        accent: matched
+                            ? const Color(0xFFFFC857)
+                            : scheme.primary,
+                      ),
+                      _ChoicePill(
+                        label: '${partner!.username}: '
+                            '${round.options[partner!.optionIndex]}',
+                        accent: matched
+                            ? const Color(0xFFFFC857)
+                            : scheme.tertiary,
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ChoicePill extends StatelessWidget {
+  const _ChoicePill({required this.label, required this.accent});
+
+  final String label;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withValues(alpha: .55)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+        ),
       ),
     );
   }

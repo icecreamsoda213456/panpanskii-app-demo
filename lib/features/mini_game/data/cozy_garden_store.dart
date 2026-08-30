@@ -283,12 +283,13 @@ class CozyGardenStore {
     return DailyDuoGardenBonusResult.fromJson(_rpcRow(response));
   }
 
-  String todayKey() {
-    final now = DateTime.now();
-    final date = now.hour < 6 ? now.subtract(const Duration(days: 1)) : now;
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$month-$day';
+  String todayKey({DateTime? now}) {
+    final manilaNow =
+        (now ?? DateTime.now()).toUtc().add(const Duration(hours: 8));
+    final effectiveDate = manilaNow.subtract(const Duration(hours: 6));
+    final month = effectiveDate.month.toString().padLeft(2, '0');
+    final day = effectiveDate.day.toString().padLeft(2, '0');
+    return '${effectiveDate.year}-$month-$day';
   }
 }
 

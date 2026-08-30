@@ -9,22 +9,27 @@ class WateringEffectComponent extends PositionComponent {
     required this.target,
     required this.onWaterHit,
     required this.onFinished,
+    this.reducedMotion = false,
   }) : super(size: sceneSize, priority: 50);
 
   static const _duration = 1.35;
+  static const _reducedDuration = .7;
 
   final Vector2 target;
   final VoidCallback onWaterHit;
   final VoidCallback onFinished;
+  final bool reducedMotion;
   double _elapsed = 0;
   bool _hasHitPlant = false;
   bool _hasFinished = false;
+
+  double get _totalDuration => reducedMotion ? _reducedDuration : _duration;
 
   @override
   void update(double dt) {
     super.update(dt);
     _elapsed += dt;
-    final progress = (_elapsed / _duration).clamp(0.0, 1.0).toDouble();
+    final progress = (_elapsed / _totalDuration).clamp(0.0, 1.0).toDouble();
     if (!_hasHitPlant && progress >= .7) {
       _hasHitPlant = true;
       onWaterHit();
@@ -38,7 +43,7 @@ class WateringEffectComponent extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
-    final progress = (_elapsed / _duration).clamp(0.0, 1.0).toDouble();
+    final progress = (_elapsed / _totalDuration).clamp(0.0, 1.0).toDouble();
     final enter = (progress / .25).clamp(0.0, 1.0).toDouble();
     final easedEnter = 1 - math.pow(1 - enter, 3).toDouble();
     final canCenter = Offset(
@@ -52,6 +57,9 @@ class WateringEffectComponent extends PositionComponent {
 
     if (progress > .24 && progress < .92) {
       _paintDroplets(canvas, canCenter, progress);
+    }
+    if (progress > .68) {
+      _paintSplash(canvas, progress);
     }
     if (progress > .7) {
       _paintThankYou(canvas, progress);
@@ -95,11 +103,12 @@ class WateringEffectComponent extends PositionComponent {
 
   void _paintDroplets(Canvas canvas, Offset canCenter, double progress) {
     final paint = Paint()..color = const Color(0xFF85D7EC);
+    final highlight = Paint()..color = const Color(0xFFD8F6FF);
     final waterProgress = ((progress - .24) / .68).clamp(0.0, 1.0).toDouble();
     final source = Offset(canCenter.dx + 24, canCenter.dy + 8);
-    for (var index = 0; index < 7; index += 1) {
+    for (var index = 0; index < 9; index += 1) {
       final dropletProgress =
-          (waterProgress - index * .075).clamp(0.0, 1.0).toDouble();
+          (waterProgress - index * .062).clamp(0.0, 1.0).toDouble();
       if (dropletProgress <= 0) continue;
       final x = source.dx +
           (target.x - source.dx) * dropletProgress +
@@ -107,7 +116,41 @@ class WateringEffectComponent extends PositionComponent {
       final y = source.dy +
           (target.y - source.dy) * dropletProgress +
           dropletProgress * dropletProgress * 14;
-      canvas.drawCircle(Offset(x, y), 2.2, paint);
+      // Droplets stretch as they fall, then shrink as they near the soil.
+      final fade = 1 - math.pow(dropletProgress, 3).toDouble() * .55;
+      final radius = (2.6 + math.sin(index * 1.3) * .5) * fade;
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(x, y),
+          width: radius * 2,
+          height: radius * 2.7,
+        ),
+        paint,
+      );
+      canvas.drawCircle(
+        Offset(x - radius * .3, y - radius * .5),
+        math.max(.6, radius * .32),
+        highlight,
+      );
+    }
+  }
+
+  /// Small burst where the water meets the soil.
+  void _paintSplash(Canvas canvas, double progress) {
+    final splash = ((progress - .68) / .24).clamp(0.0, 1.0).toDouble();
+    if (splash <= 0 || splash >= 1) return;
+    final alpha = (1 - splash).clamp(0.0, 1.0).toDouble();
+    final paint = Paint()
+      ..color = const Color(0xFFBDEEFF).withValues(alpha: alpha * .9);
+    final origin = Offset(target.x, target.y + size.y * .04);
+    for (var index = 0; index < 6; index += 1) {
+      final angle = math.pi + (index / 5) * math.pi;
+      final distance = splash * size.x * .07;
+      final center = Offset(
+        origin.dx + math.cos(angle) * distance,
+        origin.dy + math.sin(angle) * distance * .5,
+      );
+      canvas.drawCircle(center, math.max(.8, 2.4 * alpha), paint);
     }
   }
 

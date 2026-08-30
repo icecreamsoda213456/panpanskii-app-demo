@@ -5,13 +5,27 @@ import '../../features/auth/data/local_account_store.dart';
 import '../../features/bible/data/daily_bible_notification_service.dart';
 import '../supabase/supabase.dart';
 
+typedef ForegroundPushHandler = Future<bool> Function(RemoteMessage message);
+
 class PushNotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
-  static Future<void> initialize() async {
+  static Future<void> initialize({
+    ForegroundPushHandler? onForegroundMessage,
+  }) async {
     try {
       await _messaging.requestPermission(alert: true, badge: true, sound: true);
-      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      FirebaseMessaging.onMessage.listen((message) async {
+        try {
+          if (onForegroundMessage != null &&
+              await onForegroundMessage(message)) {
+            return;
+          }
+        } catch (_) {
+          // Fall through to the normal visible notification.
+        }
+        _handleForegroundMessage(message);
+      });
     } catch (_) {
       // Push support can fail on emulators/devices without Google Play services.
     }
@@ -57,7 +71,6 @@ class PushNotificationService {
       await supabase.functions.invoke(
         'send-push-notification',
         body: {
-          'senderUserId': user.id,
           'type': type,
           'title': title,
           'body': body,
@@ -65,6 +78,29 @@ class PushNotificationService {
       );
     } catch (_) {
       // The app feature already succeeded; push can wait until Edge Function setup.
+    }
+  }
+
+  static Future<bool> syncCoupleDateAlarm({
+    required String planId,
+    required String action,
+  }) async {
+    try {
+      if (supabase.auth.currentUser == null || planId.trim().isEmpty) {
+        return false;
+      }
+      await supabase.functions.invoke(
+        'send-push-notification',
+        body: {
+          'type': 'couple_date_alarm_sync',
+          'planId': planId,
+          'action': action,
+        },
+      );
+      return true;
+    } catch (_) {
+      // Realtime and app-start synchronization remain a safe retry path.
+      return false;
     }
   }
 

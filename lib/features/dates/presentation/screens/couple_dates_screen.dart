@@ -1157,6 +1157,7 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
         notes: _notesController.text,
         category: _category,
         visibility: _visibility,
+        previousVisibility: widget.plan?.visibility,
         startsAt: _startsAt,
         reminderMinutes: _reminder.minutes,
       );
