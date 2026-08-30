@@ -138,16 +138,20 @@ class WidgetNoteStore {
     return supabase.storage.from(bucket).download(storagePath);
   }
 
+  /// A permanent public URL for a stored note PNG. The bucket is public
+  /// (see supabase_widget_notes.sql), so this never expires — safer for the
+  /// widget than signed URLs which die after at most one week.
+  static String publicNoteUrl(String storagePath) {
+    return supabase.storage.from(bucket).getPublicUrl(storagePath);
+  }
+
   /// A temporary URL the Android widget can download the PNG from directly,
   /// without the Flutter app running. Supabase signed URLs live at most one
   /// week, so the app refreshes it on every launch and foreground sync; the
   /// widget keeps its cached copy whenever the URL has expired.
   Future<String?> createNoteImageUrl(String storagePath) async {
     try {
-      // 604800 seconds = 7 days, the maximum Supabase allows.
-      return await supabase.storage
-          .from(bucket)
-          .createSignedUrl(storagePath, 604800);
+      return publicNoteUrl(storagePath);
     } catch (_) {
       return null;
     }

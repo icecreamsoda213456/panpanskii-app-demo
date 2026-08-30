@@ -97,6 +97,11 @@ class _ExploreTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: () => context.push(item.route),
+        // Hidden diagnostics: long-press the Widget Note tile to open the
+        // widget-note chain check (account -> RLS -> URL -> widget data).
+        onLongPress: item.route == '/widget-notes'
+            ? () => context.push('/widget-notes-diagnostics')
+            : null,
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),

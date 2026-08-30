@@ -29,6 +29,7 @@ import '../features/reminders/presentation/screens/reminders_screen.dart';
 import '../features/send_love/presentation/screens/love_letters_screen.dart';
 import '../features/thoughts/presentation/screens/write_thoughts_screen.dart';
 import '../features/widget_notes/presentation/screens/widget_note_canvas_screen.dart';
+import '../features/widget_notes/presentation/screens/widget_note_diagnostics_screen.dart';
 import '../features/wisdom/presentation/screens/communal_wisdom_screen.dart';
 import '../features/photobooth/presentation/screens/photobooth_screen.dart';
 import '../features/photobooth/presentation/screens/photobooth_gallery_screen.dart';
@@ -582,6 +583,11 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
           path: '/widget-notes',
           pageBuilder: (context, state) =>
               _page(state, WidgetNoteCanvasScreen(account: _account!)),
+        ),
+        GoRoute(
+          path: '/widget-notes-diagnostics',
+          pageBuilder: (context, state) =>
+              _page(state, const WidgetNoteDiagnosticsScreen()),
         ),
         for (final destination in _FeatureDestination.values.where(
           (destination) =>
