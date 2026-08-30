@@ -182,23 +182,33 @@ class _WidgetNoteCanvasScreenState extends State<WidgetNoteCanvasScreen> {
               onBack: () => context.pop(),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 460),
+              // Hindi scrollable ito — pinag-uusapan natin dito ang gesture:
+              // kapag nasa loob ng SingleChildScrollView ang canvas, nananalo
+              // ang scroll sa pan-drag kaya hindi makakapag-draw ang user.
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                     child: Column(
                       children: [
-                        AspectRatio(
-                          aspectRatio: 1,
-                          child: RepaintBoundary(
-                            key: _canvasBoundaryKey,
-                            child: GestureDetector(
-                              onPanStart: _onPanStart,
-                              onPanUpdate: _onPanUpdate,
-                              child: CustomPaint(
-                                painter: WidgetNotePainter(strokes: _strokes),
-                                child: const SizedBox.expand(),
+                        Expanded(
+                          // Square na canvas na kasya sa natitirang space —
+                          // mas malaki pa kaysa dati (hindi na napipilitan
+                          // na maliit dahil sa scroll).
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                            child: RepaintBoundary(
+                              key: _canvasBoundaryKey,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onPanStart: _onPanStart,
+                                onPanUpdate: _onPanUpdate,
+                                child: CustomPaint(
+                                  painter:
+                                      WidgetNotePainter(strokes: _strokes),
+                                  child: const SizedBox.expand(),
+                                ),
                               ),
                             ),
                           ),
