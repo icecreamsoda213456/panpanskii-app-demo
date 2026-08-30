@@ -61,6 +61,7 @@ Deno.serve(async (request) => {
   } catch (_) {
     return json({ error: 'A JSON request body is required.' }, 400);
   }
+  const type = cleanString(payload.type);
 
   const userClient = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: authorization } },
@@ -86,10 +87,21 @@ Deno.serve(async (request) => {
     return json({ error: 'This account is not approved for Panpanskii.' }, 403);
   }
 
+  let recipientTokens: string[];
   try {
-    const recipientTokens = await loadRecipientTokens(admin, user.id);
-    const type = cleanString(payload.type) || 'panpanskii';
-    const accessToken = await createFirebaseAccessToken();
+    recipientTokens = await loadRecipientTokens(admin, user.id);
+  } catch (error) {
+    return json({ error: `STEP load_recipient_tokens failed: ${String(error)}` }, 500);
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await createFirebaseAccessToken();
+  } catch (error) {
+    return json({ error: `STEP firebase_auth failed: ${String(error)}` }, 500);
+  }
+
+  try {
     if (type === coupleDateSyncType) {
       return await handleCoupleDateSync({
         admin,
