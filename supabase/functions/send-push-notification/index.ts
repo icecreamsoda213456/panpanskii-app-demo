@@ -52,6 +52,7 @@ Deno.serve(async (request) => {
     !serviceRoleKey ||
     !firebaseProjectId
   ) {
+    console.error('STEP env_check failed: missing one of SUPABASE_URL/ANON/SERVICE_ROLE/FIREBASE_PROJECT_ID');
     return json({ error: 'Push configuration is incomplete.' }, 500);
   }
 
@@ -91,6 +92,7 @@ Deno.serve(async (request) => {
   try {
     recipientTokens = await loadRecipientTokens(admin, user.id);
   } catch (error) {
+    console.error(`STEP load_recipient_tokens failed: ${String(error)}`);
     return json({ error: `STEP load_recipient_tokens failed: ${String(error)}` }, 500);
   }
 
@@ -98,6 +100,7 @@ Deno.serve(async (request) => {
   try {
     accessToken = await createFirebaseAccessToken();
   } catch (error) {
+    console.error(`STEP firebase_auth failed: ${String(error)}`);
     return json({ error: `STEP firebase_auth failed: ${String(error)}` }, 500);
   }
 
@@ -137,6 +140,7 @@ Deno.serve(async (request) => {
     );
     return json(result);
   } catch (error) {
+    console.error(`STEP send failed: ${String(error)}`);
     return json({ error: String(error) }, 500);
   }
 });
@@ -250,13 +254,22 @@ async function sendToTokens(
   sender: (token: string) => Promise<void>,
 ) {
   if (tokens.length === 0) {
+    console.error('STEP send skipped: recipient has 0 push tokens (partner never opened the app on this APK)');
     return { sent: 0, failed: 0 };
   }
+  console.log(`STEP send starting: ${tokens.length} token(s)`);
   const results = await Promise.allSettled(tokens.map(sender));
-  return {
+  const summary = {
     sent: results.filter((result) => result.status === 'fulfilled').length,
     failed: results.filter((result) => result.status === 'rejected').length,
   };
+  console.log(`STEP send done: sent=${summary.sent} failed=${summary.failed}`);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error(`STEP send per-token failure: ${String(result.reason)}`);
+    }
+  }
+  return summary;
 }
 
 async function sendFcmMessage({
@@ -296,7 +309,9 @@ async function sendFcmMessage({
     },
   );
   if (!response.ok) {
-    throw new Error(`FCM failed: ${await response.text()}`);
+    const detail = await response.text();
+    console.error(`STEP fcm_send failed (HTTP ${response.status}): ${detail}`);
+    throw new Error(`FCM failed: ${detail}`);
   }
 }
 
