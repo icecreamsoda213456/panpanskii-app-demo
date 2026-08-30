@@ -62,6 +62,21 @@ class WidgetNotePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant WidgetNotePainter oldDelegate) {
-    return oldDelegate.strokes != strokes || oldDelegate.background != background;
+    // Strokes mutate in place — points are appended to the same list during a
+    // drag — so object identity never changes. Compare stroke/point counts
+    // instead so the canvas repaints live while the user draws.
+    if (oldDelegate.background != background) {
+      return true;
+    }
+    if (oldDelegate.strokes.length != strokes.length) {
+      return true;
+    }
+    for (var index = 0; index < strokes.length; index += 1) {
+      if (oldDelegate.strokes[index].points.length !=
+          strokes[index].points.length) {
+        return true;
+      }
+    }
+    return false;
   }
 }
