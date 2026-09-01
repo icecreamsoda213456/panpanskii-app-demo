@@ -87,6 +87,10 @@ class _WidgetNoteCanvasScreenState extends State<WidgetNoteCanvasScreen> {
       return null;
     }
     final pixelRatio = (512 / boundary.size.width).clamp(0.5, 4.0);
+    // Make sure any setState from the final drag (e.g. the last stroke) has
+    // been painted before we snapshot the RepaintBoundary, otherwise the very
+    // last few points can be missing from the exported PNG.
+    await WidgetsBinding.instance.endOfFrame;
     final image = await boundary.toImage(pixelRatio: pixelRatio);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     return byteData?.buffer.asUint8List();

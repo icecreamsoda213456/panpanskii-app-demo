@@ -27,6 +27,13 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (message.data['type'] == 'widget_note') {
     // The partner sent a new note: hand the widget a fresh URL so it can pull
     // the drawing over WiFi/data even with the app closed.
+    try {
+      // In this fresh background isolate the Supabase session stored on disk
+      // has to be hydrated before the sync can read the partner's note.
+      await supabase.auth.recoverSession();
+    } catch (_) {
+      // No saved session; syncLatest will skip and log.
+    }
     await WidgetNoteHomeWidgetService.syncLatest();
   }
   await CoupleDateNotificationService.handleRemotePushData(message.data);

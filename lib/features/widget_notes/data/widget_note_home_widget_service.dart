@@ -28,14 +28,33 @@ class WidgetNoteHomeWidgetService {
   /// app itself never breaks because the widget could not refresh.
   static Future<void> syncLatest() async {
     try {
+      // In a background isolate (push handler) the Supabase client is created
+      // fresh, so the persisted session may not be hydrated yet and
+      // currentUser can be null. Recover the session first so the sync is not
+      // silently skipped whenever the push woke the app from the background.
       if (supabase.auth.currentUser == null) {
-        return;
+        try {
+          await supabase.auth.recoverSession();
+        } catch (_) {
+          // No session on disk; fall through to the check below.
+        }
+        if (supabase.auth.currentUser == null) {
+          debugPrint(
+            'WidgetNoteHomeWidgetService.syncLatest skipped: '
+            'walang naka-sign-in na session.',
+          );
+          return;
+        }
       }
 
       final store = WidgetNoteStore();
       final note = await store.fetchLatestPartnerNote();
 
       if (note == null || note.storagePath.isEmpty) {
+        debugPrint(
+          'WidgetNoteHomeWidgetService.syncLatest: walang partner note '
+          '(pinakabagong na-save na widget data kami ngayon).',
+        );
         await HomeWidget.saveWidgetData<String>(imageUrlKey, null);
         await HomeWidget.saveWidgetData<String>(usernameKey, null);
         await HomeWidget.saveWidgetData<String>(captionKey, null);
@@ -45,6 +64,9 @@ class WidgetNoteHomeWidgetService {
 
       final url = await store.createNoteImageUrl(note.storagePath);
       if (url == null || url.isEmpty) {
+        debugPrint(
+          'WidgetNoteHomeWidgetService.syncLatest: hindi makuha ang image URL.',
+        );
         return;
       }
 
