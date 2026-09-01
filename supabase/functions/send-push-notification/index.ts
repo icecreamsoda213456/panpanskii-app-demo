@@ -342,16 +342,21 @@ async function createFirebaseAccessToken() {
   );
   const jwt = `${unsignedJwt}.${base64Url(signature)}`;
 
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth2:grant-type:jwt-bearer',
+    assertion: jwt,
+  });
+
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth2:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
+    body: body.toString(),
   });
   if (!response.ok) {
-    throw new Error(`Google auth failed: ${await response.text()}`);
+    const detail = await response.text();
+    console.error(`STEP google_token exchange failed (HTTP ${response.status}): ${detail}`);
+    console.error(`DEBUG jwt_length=${jwt.length} jwt_prefix=${jwt.slice(0,40)}`);
+    throw new Error(`Google auth failed: ${detail}`);
   }
 
   const result = await response.json() as { access_token?: string };
