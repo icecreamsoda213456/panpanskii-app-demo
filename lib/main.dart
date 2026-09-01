@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -60,10 +61,12 @@ Future<void> main() async {
   );
 
   final user = supabase.auth.currentUser;
-  debugPrint('Supabase current user: $user');
-  debugPrint('User ID: ${user?.id}');
-  debugPrint('User email: ${user?.email}');
-  debugPrint('Is authenticated: ${user != null}');
+  if (kDebugMode) {
+    debugPrint('Supabase current user: $user');
+    debugPrint('User ID: ${user?.id}');
+    debugPrint('User email: ${user?.email}');
+    debugPrint('Is authenticated: ${user != null}');
+  }
 
   await DailyBibleNotificationService.initializeAndSchedule();
   await PushNotificationService.initialize(

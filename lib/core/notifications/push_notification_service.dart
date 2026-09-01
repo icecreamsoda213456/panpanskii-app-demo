@@ -76,10 +76,13 @@ class PushNotificationService {
           'body': body,
         },
       );
-      debugPrint('PUSH DEBUG sendPush OK response=${response.data}');
+      if (kDebugMode) {
+        debugPrint('PUSH DEBUG sendPush OK response=${response.data}');
+      }
     } catch (error) {
-      // Temporary debugging: surface the edge function's real error body.
-      debugPrint('PUSH DEBUG sendPush failed: $error');
+      if (kDebugMode) {
+        debugPrint('PUSH DEBUG sendPush failed: $error');
+      }
     }
   }
 
