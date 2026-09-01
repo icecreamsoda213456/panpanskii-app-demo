@@ -76,8 +76,12 @@ class PushNotificationService {
           'body': body,
         },
       );
-    } catch (_) {
-      // The app feature already succeeded; push can wait until Edge Function setup.
+    } on FunctionException catch (error) {
+      // Temporary debugging: surface the edge function's real error body.
+      debugPrint('PUSH DEBUG status=${error.status} reason=${error.reasonPhrase}');
+      debugPrint('PUSH DEBUG body=${error.details}');
+    } catch (error) {
+      debugPrint('PUSH DEBUG sendPush failed: $error');
     }
   }
 
