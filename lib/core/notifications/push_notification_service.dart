@@ -76,11 +76,8 @@ class PushNotificationService {
           'body': body,
         },
       );
-    } on FunctionException catch (error) {
-      // Temporary debugging: surface the edge function's real error body.
-      debugPrint('PUSH DEBUG status=${error.status} reason=${error.reasonPhrase}');
-      debugPrint('PUSH DEBUG body=${error.details}');
     } catch (error) {
+      // Temporary debugging: surface the edge function's real error body.
       debugPrint('PUSH DEBUG sendPush failed: $error');
     }
   }
