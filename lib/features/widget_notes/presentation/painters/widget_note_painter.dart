@@ -62,21 +62,17 @@ class WidgetNotePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant WidgetNotePainter oldDelegate) {
-    // Strokes mutate in place — points are appended to the same list during a
-    // drag — so object identity never changes. Compare stroke/point counts
-    // instead so the canvas repaints live while the user draws.
-    if (oldDelegate.background != background) {
-      return true;
-    }
-    if (oldDelegate.strokes.length != strokes.length) {
-      return true;
-    }
-    for (var index = 0; index < strokes.length; index += 1) {
-      if (oldDelegate.strokes[index].points.length !=
-          strokes[index].points.length) {
-        return true;
-      }
-    }
-    return false;
+    // Strokes mutate in place: only the POINTS on a shared stroke list are
+    // appended during a drag, and the State widget keeps holding the exact
+    // same list object from one build to the next. Because old and new
+    // delegates therefore read the SAME (already-mutated) object when we
+    // compare them here, comparing stroke counts or point lengths can never
+    // detect the change — so shouldRepaint would return false and the canvas
+    // would not repaint live while the user draws.
+    //
+    // The canvas is small and repaints are cheap, so we always repaint on
+    // rebuild. Length changes (new stroke, undo, clear) and color/width
+    // touches all flow through setState too, so they are covered as well.
+    return true;
   }
 }
