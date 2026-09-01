@@ -134,6 +134,7 @@ Deno.serve(async (request) => {
           accessToken,
           firebaseProjectId,
           token,
+          admin,
           notification: isWidgetNote ? undefined : { title, body },
           data: { type, title, body },
         }),
@@ -208,6 +209,7 @@ async function handleCoupleDateSync({
     recipientTokens,
     (token) =>
       sendFcmMessage({
+        admin,
         accessToken,
         firebaseProjectId,
         token,
@@ -273,12 +275,14 @@ async function sendToTokens(
 }
 
 async function sendFcmMessage({
+  admin,
   accessToken,
   firebaseProjectId,
   token,
   notification,
   data,
 }: {
+  admin: ReturnType<typeof createClient>;
   accessToken: string;
   firebaseProjectId: string;
   token: string;
@@ -311,6 +315,14 @@ async function sendFcmMessage({
   if (!response.ok) {
     const detail = await response.text();
     console.error(`STEP fcm_send failed (HTTP ${response.status}): ${detail}`);
+    if (response.status === 404 && /NotRegistered|UNREGISTERED/.test(detail)) {
+      try {
+        await admin.from('push_tokens').delete().eq('token', token);
+        console.error(`STEP removed stale push token (NotRegistered): ${token.slice(0, 18)}…`);
+      } catch (deleteError) {
+        console.error(`STEP could not remove stale token: ${String(deleteError)}`);
+      }
+    }
     throw new Error(`FCM failed: ${detail}`);
   }
 }
