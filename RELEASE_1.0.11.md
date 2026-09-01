@@ -1,10 +1,13 @@
 # Release Checklist — v1.0.11 (versionCode 12)
 
 ## Anong bago sa release na ito
-- Naayos ang pag-draw sa Widget Notes canvas (hindi na sinusunggab ng scroll ang daliri)
+- Naayos ang pag-draw sa Widget Notes canvas (hindi na sinusunggab ng scroll ang daliri; naayos rin ang live-painting bug, hindi na sumusunod sa lumang stroke kapag nagpapadala ng bagong draw)
 - Mas malaki ang default size ng home-screen widget (3x3 cells, 140dp minimum)
-- Calming lavender-night background sa widget note (hindi na pure black)
-- Soft lavender spinner at warm off-white empty text sa widget
+- **Widget Notes push (FCM)** - awtomatikong lumalabas sa home-screen widget ng partner ang hand-drawn note: data-only FCM > background isolate > i-download ang latest PNG > i-refresh ang widget
+- **Supabase Edge Function 500 fix** - ang `send-push-notification` ay bumalik na ng 200: maling `grant_type` URN (`oauth:grant-type`, hindi `oauth2:grant-type`); at nawawalang `type` variable
+- **Public PNG URLs** - gumagamit na ng permanenteng public URL, hindi na signed URLs na nag-e-expire sa isang linggo;
+- **Diagnostics screen** - bagong tool para i-check ang push setup (long-press ang "Widget Note" tile sa More > "Widget Notes Diagnostics"): 200/400/401/403/500 status, sent/failed count, partner push-token status;
+- **Widget background** - nanatiling **pure black `#121212`** (hindi itinuloy ang lavender, base sa feedback;)
 
 ## Preparation (TAPOS NA — hindi mo na kailangang gawin)
 - [x] `pubspec.yaml` → `version: 1.0.11+12`
