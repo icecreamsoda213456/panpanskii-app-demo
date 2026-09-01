@@ -68,7 +68,7 @@ class PushNotificationService {
         return;
       }
 
-      await supabase.functions.invoke(
+      final response = await supabase.functions.invoke(
         'send-push-notification',
         body: {
           'type': type,
@@ -76,6 +76,7 @@ class PushNotificationService {
           'body': body,
         },
       );
+      debugPrint('PUSH DEBUG sendPush OK response=${response.data}');
     } catch (error) {
       // Temporary debugging: surface the edge function's real error body.
       debugPrint('PUSH DEBUG sendPush failed: $error');
