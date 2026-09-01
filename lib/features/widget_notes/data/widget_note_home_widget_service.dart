@@ -28,23 +28,16 @@ class WidgetNoteHomeWidgetService {
   /// app itself never breaks because the widget could not refresh.
   static Future<void> syncLatest() async {
     try {
-      // In a background isolate (push handler) the Supabase client is created
-      // fresh, so the persisted session may not be hydrated yet and
-      // currentUser can be null. Recover the session first so the sync is not
-      // silently skipped whenever the push woke the app from the background.
+      // `Supabase.initialize()` already restores the persisted session from local
+      // storage (including in a fresh background isolate after a push), so we
+      // just check that a session exists; no manual recoverSession() is needed
+      // (that API requires the raw session JSON string in this GoTrue version).
       if (supabase.auth.currentUser == null) {
-        try {
-          await supabase.auth.recoverSession();
-        } catch (_) {
-          // No session on disk; fall through to the check below.
-        }
-        if (supabase.auth.currentUser == null) {
-          debugPrint(
-            'WidgetNoteHomeWidgetService.syncLatest skipped: '
-            'walang naka-sign-in na session.',
-          );
-          return;
-        }
+        debugPrint(
+          'WidgetNoteHomeWidgetService.syncLatest skipped: '
+          'walang naka-sign-in na session.',
+        );
+        return;
       }
 
       final store = WidgetNoteStore();
