@@ -343,7 +343,7 @@ async function createFirebaseAccessToken() {
   const jwt = `${unsignedJwt}.${base64Url(signature)}`;
 
   const body = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth2:grant-type:jwt-bearer',
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
     assertion: jwt,
   });
 
