@@ -151,6 +151,20 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
   }
 
   Future<void> _loadAccount() async {
+    if (isPortfolioDemo) {
+      _clearBackgroundLockState();
+      setState(() {
+        _account = const LocalAccount(
+          username: 'Guest Owner',
+          mascot: AccountMascot.panda,
+          isBiometricEnabled: false,
+        );
+        _isUnlocked = true;
+        _isLoadingAccount = false;
+      });
+      return;
+    }
+
     final account = await _accountStore.loadAccount();
     if (!mounted) {
       return;
