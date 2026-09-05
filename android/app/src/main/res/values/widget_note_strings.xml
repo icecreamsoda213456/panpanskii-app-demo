@@ -1,0 +1,7 @@
+<resources>
+    <string name="widget_note_description">The latest hand-drawn note from your panpanskii</string>
+    <string name="widget_note_empty">No notes yet — draw one in the app!</string>
+    <string name="widget_note_empty_author">Widget Note</string>
+    <string name="widget_note_from">From %1$s</string>
+    <string name="widget_note_image_description">Hand-drawn widget note</string>
+</resources>

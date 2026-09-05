@@ -1,0 +1,47 @@
+Running Gradle task 'assembleRelease'...                        
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "Windows_NT" == "Windows_NT" setlocal
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set DEFAULT_JVM_OPTS= 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set DIRNAME=C:\Users\HpProbook\Documents\panpanskii_app\android\ 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "C:\Users\HpProbook\Documents\panpanskii_app\android\" == "" set DIRNAME=. 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set APP_BASE_NAME=gradlew 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set APP_HOME=C:\Users\HpProbook\Documents\panpanskii_app\android\ 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if defined JAVA_HOME goto findJavaFromJavaHome 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set JAVA_EXE=C:\Program Files\Android\Android Studio\jbr/bin/java.exe 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if exist "C:\Program Files\Android\Android Studio\jbr/bin/java.exe" goto init 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if not "Windows_NT" == "Windows_NT" goto win9xME_args 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "@eval[2+2]" == "4" goto 4NT_args 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set CMD_LINE_ARGS= 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set _SKIP=2 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "x-q" == "x" goto execute 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set CMD_LINE_ARGS=-q -Ptarget-platform=android-arm,android-arm64,android-x64 -Ptarget=lib\main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9WRVJTSU9OPTMuNDQuNQ==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049Zjk0ZjRmYzc2Yg==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049ODM2NzVlZDI3Ng==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMi4y -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=true assembleRelease 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>goto execute 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set CLASSPATH=C:\Users\HpProbook\Documents\panpanskii_app\android\\gradle\wrapper\gradle-wrapper.jar 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>"C:\Program Files\Android\Android Studio\jbr/bin/java.exe"    "-Dorg.gradle.appname=gradlew" -classpath "C:\Users\HpProbook\Documents\panpanskii_app\android\\gradle\wrapper\gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain -q -Ptarget-platform=android-arm,android-arm64,android-x64 -Ptarget=lib\main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9WRVJTSU9OPTMuNDQuNQ==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049Zjk0ZjRmYzc2Yg==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049ODM2NzVlZDI3Ng==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMi4y -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=true assembleRelease 
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 21692 bytes (98.7% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Font asset "CupertinoIcons.ttf" was tree-shaken, reducing it from 257628 to 848 bytes (99.7% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "0" == "0" goto mainEnd 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "Windows_NT" == "Windows_NT" endlocal
+Running Gradle task 'assembleRelease'...                          958.2s
+√ Built build\app\outputs\flutter-apk\app-release.apk (105.7MB)

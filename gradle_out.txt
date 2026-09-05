@@ -1,0 +1,49 @@
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "Windows_NT" == "Windows_NT" setlocal
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set DEFAULT_JVM_OPTS= 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set DIRNAME=C:\Users\HpProbook\Documents\panpanskii_app\android\ 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "C:\Users\HpProbook\Documents\panpanskii_app\android\" == "" set DIRNAME=. 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set APP_BASE_NAME=gradlew 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set APP_HOME=C:\Users\HpProbook\Documents\panpanskii_app\android\ 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if defined JAVA_HOME goto findJavaFromJavaHome 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set JAVA_EXE=java.exe 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>java.exe -version  1>NUL 2>&1 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "0" == "0" goto init 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if not "Windows_NT" == "Windows_NT" goto win9xME_args 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "@eval[2+2]" == "4" goto 4NT_args 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set CMD_LINE_ARGS= 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set _SKIP=2 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "x:app:compileReleaseKotlin" == "x" goto execute 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set CMD_LINE_ARGS=:app:compileReleaseKotlin --console=plain 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>goto execute 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>set CLASSPATH=C:\Users\HpProbook\Documents\panpanskii_app\android\\gradle\wrapper\gradle-wrapper.jar 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>"java.exe"    "-Dorg.gradle.appname=gradlew" -classpath "C:\Users\HpProbook\Documents\panpanskii_app\android\\gradle\wrapper\gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain :app:compileReleaseKotlin --console=plain 
+Starting a Gradle Daemon, 1 incompatible Daemon could not be reused, use --status for details
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if "1" == "0" goto mainEnd 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>rem Set variable GRADLE_EXIT_CONSOLE if you need the _script_ return code instead of 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>rem the _cmd.exe /c_ return code! 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>if not "" == "" exit 1 
+
+C:\Users\HpProbook\Documents\panpanskii_app\android>exit /b 1 
