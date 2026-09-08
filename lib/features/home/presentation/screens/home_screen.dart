@@ -43,16 +43,16 @@ const _kQuickActionOrder = <_HomeShortcut>[
   _HomeShortcut.journal,
 ];
 
-/// The personal note typed out under the panda portrait. Kept as a top-level
+/// The demo note typed out under the panda portrait. Kept as a top-level
 /// constant so a test can assert the exact wording never changes.
 @visibleForTesting
 const String kHomePandaMessage =
-    'You are my cutiepatottie majoyskii, my panda and my favorite person in every tiny universe we make together.';
+    'A warm hello for the love of your life. Every little moment is better together.';
 
-/// The personal note typed out under the koala portrait.
+/// The demo note typed out under the koala portrait.
 @visibleForTesting
 const String kHomeKoalaMessage =
-    'You are my cutie patootie naughty chanchanskii, my clingy koala, my comfort person, and my favorite place to call home';
+    'Here is to the person who makes ordinary days feel special. Welcome to your cozy space.';
 
 /// Exposes immutable dashboard route metadata to focused widget tests without
 /// booting the whole screen (and with it Supabase).
