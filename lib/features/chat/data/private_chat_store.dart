@@ -1,5 +1,6 @@
 import '../../../core/supabase/supabase.dart';
 import '../../../core/notifications/push_notification_service.dart';
+import '../../../demo_config.dart';
 import '../../auth/data/local_account_store.dart';
 
 class PrivateChatMessage {
@@ -76,6 +77,35 @@ class PrivateChatStore {
   static const _columns = 'id, user_id, username, mascot, message, created_at';
 
   Stream<List<PrivateChatMessage>> watchMessages() {
+    if (isPortfolioDemo) {
+      final now = DateTime.now();
+      return Stream.value([
+        PrivateChatMessage(
+          id: 'demo-message-1',
+          userId: 'demo-panda',
+          username: 'Panda',
+          mascot: AccountMascot.panda,
+          message: 'Good morning! Leaving a little sunshine here for you.',
+          createdAt: now.subtract(const Duration(minutes: 42)),
+        ),
+        PrivateChatMessage(
+          id: 'demo-message-2',
+          userId: 'demo-koala',
+          username: 'Koala',
+          mascot: AccountMascot.koala,
+          message: 'I found it. Adding this to our cozy wins for today!',
+          createdAt: now.subtract(const Duration(minutes: 35)),
+        ),
+        PrivateChatMessage(
+          id: 'demo-message-3',
+          userId: 'demo-panda',
+          username: 'Panda',
+          mascot: AccountMascot.panda,
+          message: 'Garden check later? I think our sunflower is growing.',
+          createdAt: now.subtract(const Duration(minutes: 18)),
+        ),
+      ]);
+    }
     return supabase
         .from('private_chat_messages')
         .stream(primaryKey: ['id'])
@@ -92,6 +122,19 @@ class PrivateChatStore {
   }
 
   Stream<List<PrivateChatReaction>> watchReactions() {
+    if (isPortfolioDemo) {
+      return Stream.value([
+        PrivateChatReaction(
+          id: 'demo-reaction-1',
+          messageId: 'demo-message-1',
+          userId: 'demo-koala',
+          username: 'Koala',
+          mascot: AccountMascot.koala,
+          reaction: 'love',
+          createdAt: DateTime.now().subtract(const Duration(minutes: 40)),
+        ),
+      ]);
+    }
     return supabase
         .from('private_chat_reactions')
         .stream(primaryKey: ['id']).map(

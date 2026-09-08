@@ -1,5 +1,6 @@
 import '../../auth/data/local_account_store.dart';
 import '../../../core/supabase/supabase.dart';
+import '../../../demo_config.dart';
 
 class CozyGardenState {
   const CozyGardenState({
@@ -187,6 +188,22 @@ class DailyDuoGardenBonusResult {
 
 class CozyGardenStore {
   Stream<CozyGardenState> watchGarden() {
+    if (isPortfolioDemo) {
+      return Stream.value(
+        CozyGardenState(
+          plantType: 'sunflower',
+          growth: 72,
+          lastWateredBy: 'demo-koala',
+          wateredAt: DateTime.now().subtract(const Duration(minutes: 12)),
+          currentStreak: 4,
+          longestStreak: 9,
+          totalHarvests: 2,
+          cycleStartedAt: DateTime.now().subtract(const Duration(days: 5)),
+          lastCompletedDay: DateTime.now().subtract(const Duration(days: 1)),
+          lastHarvestedAt: DateTime.now().subtract(const Duration(days: 8)),
+        ),
+      );
+    }
     return supabase
         .from('cozy_garden_state')
         .stream(primaryKey: ['id'])
@@ -197,6 +214,20 @@ class CozyGardenStore {
   }
 
   Stream<List<CozyGardenAction>> watchActions(String dayKey) {
+    if (isPortfolioDemo) {
+      return Stream.value([
+        const CozyGardenAction(
+          userId: 'demo-panda',
+          username: 'Panda',
+          mascot: AccountMascot.panda,
+        ),
+        const CozyGardenAction(
+          userId: 'demo-koala',
+          username: 'Koala',
+          mascot: AccountMascot.koala,
+        ),
+      ]);
+    }
     return supabase
         .from('cozy_garden_actions')
         .stream(primaryKey: ['id'])
