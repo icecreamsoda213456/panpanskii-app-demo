@@ -362,9 +362,9 @@ void main() {
   });
 
   group('Home copy', () {
-    test('the mascot notes keep their exact wording', () {
-      expect(kHomePandaMessage, contains('cutiepatottie majoyskii'));
-      expect(kHomeKoalaMessage, contains('clingy koala'));
+    test('the mascot notes use generic demo wording', () {
+      expect(kHomePandaMessage, contains('love of your life'));
+      expect(kHomeKoalaMessage, contains('ordinary days feel special'));
     });
   });
 }
