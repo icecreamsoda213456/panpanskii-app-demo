@@ -244,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 stops: [0, 0.54, 1],
-                colors: widget.isDarkMode
+                colors: _isDarkMode
                     ? [
                         scheme.surface,
                         scheme.surfaceContainerHighest,
@@ -263,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             top: -96,
             child: SkyGlow(
               size: 352,
-              color: widget.isDarkMode ? scheme.tertiary : scheme.primary,
+              color: _isDarkMode ? scheme.tertiary : scheme.primary,
             ),
           ),
           Positioned(
@@ -271,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             bottom: size.height * 0.1,
             child: SkyGlow(
               size: 288,
-              color: widget.isDarkMode ? scheme.primary : scheme.tertiary,
+              color: _isDarkMode ? scheme.primary : scheme.tertiary,
             ),
           ),
           Positioned(
@@ -279,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             top: isMobile ? 72 : 90,
             child: IgnorePointer(
               child: Opacity(
-                opacity: widget.isDarkMode ? 0.34 : 0.52,
+                opacity: _isDarkMode ? 0.34 : 0.52,
                 child: Lottie.asset(
                   'assets/animations/soft_sparkles.json',
                   width: isMobile ? 128 : 176,
@@ -313,6 +313,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+
   Widget _buildHeroPanel(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width <= 520;
     const actions = _kQuickActionOrder;
@@ -324,17 +326,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       children: [
         _HomeTopBar(
           compact: compact,
-          isDarkMode: widget.isDarkMode,
+          isDarkMode: _isDarkMode,
           onToggleTheme: widget.onToggleTheme,
         ),
         SizedBox(height: compact ? 10 : 14),
-        _PixelHeroTitle(compact: compact, isDarkMode: widget.isDarkMode),
+        _PixelHeroTitle(compact: compact, isDarkMode: _isDarkMode),
         SizedBox(height: compact ? 12 : 14),
         _HomeConnectionCard(
           compact: compact,
           typedMessage: _typedMessage,
           cursorController: _cursorController,
-          isDarkMode: widget.isDarkMode,
+          isDarkMode: _isDarkMode,
         ),
         SizedBox(height: sectionGap),
         _HomeSection(
