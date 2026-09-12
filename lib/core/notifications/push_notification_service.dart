@@ -13,6 +13,7 @@ class PushNotificationService {
   static Future<void> initialize({
     ForegroundPushHandler? onForegroundMessage,
   }) async {
+    if (isPortfolioDemo) return;
     try {
       await _messaging.requestPermission(alert: true, badge: true, sound: true);
       FirebaseMessaging.onMessage.listen((message) async {
@@ -32,6 +33,7 @@ class PushNotificationService {
   }
 
   static Future<void> registerDevice(LocalAccount account) async {
+    if (isPortfolioDemo) return;
     try {
       final user = supabase.auth.currentUser;
       if (user == null) {
@@ -62,6 +64,7 @@ class PushNotificationService {
     required String title,
     required String body,
   }) async {
+    if (isPortfolioDemo) return;
     try {
       final user = supabase.auth.currentUser;
       if (user == null) {
@@ -90,6 +93,7 @@ class PushNotificationService {
     required String planId,
     required String action,
   }) async {
+    if (isPortfolioDemo) return false;
     try {
       if (supabase.auth.currentUser == null || planId.trim().isEmpty) {
         return false;

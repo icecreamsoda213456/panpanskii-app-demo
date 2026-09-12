@@ -2,6 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as timezone;
+import '../../../demo_config.dart';
 
 class DailyBibleNotificationService {
   static const _legacyNotificationId = 600;
@@ -30,6 +31,7 @@ class DailyBibleNotificationService {
   static bool _isInitialized = false;
 
   static Future<void> initializeAndSchedule() async {
+    if (isPortfolioDemo) return;
     try {
       await _initialize();
       await _requestPermissions();
@@ -41,6 +43,7 @@ class DailyBibleNotificationService {
   }
 
   static Future<void> scheduleDailyWisdomReminder() async {
+    if (isPortfolioDemo) return;
     try {
       await _initialize();
       await _notifications.zonedSchedule(
@@ -68,6 +71,7 @@ class DailyBibleNotificationService {
   }
 
   static Future<void> scheduleDailyReminder() async {
+    if (isPortfolioDemo) return;
     try {
       await _initialize();
       await _notifications.cancel(id: _legacyNotificationId);
@@ -103,6 +107,7 @@ class DailyBibleNotificationService {
     required String username,
     required bool hasAttachment,
   }) async {
+    if (isPortfolioDemo) return;
     try {
       await _initialize();
       await _notifications.show(
@@ -133,6 +138,7 @@ class DailyBibleNotificationService {
     required String body,
     int seed = 0,
   }) async {
+    if (isPortfolioDemo) return;
     try {
       await _initialize();
       await _notifications.show(

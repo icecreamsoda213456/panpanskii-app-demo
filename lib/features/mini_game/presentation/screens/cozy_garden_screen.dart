@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/presentation/pan_ui.dart';
 import '../../../../core/supabase/supabase.dart';
-import '../../../../demo_config.dart';
 import '../../../auth/data/local_account_store.dart';
 import '../../data/cozy_garden_store.dart';
 import '../../data/garden_progression.dart';
@@ -208,9 +207,7 @@ class _CozyGardenScreenState extends State<CozyGardenScreen>
                             unlockSnapshot.data ?? const <CozyGardenUnlock>[];
                         final bonusEvents = bonusSnapshot.data ??
                             const <CozyGardenBonusEvent>[];
-                        final currentUserId = isPortfolioDemo
-                            ? 'demo-panda'
-                            : supabase.auth.currentUser?.id;
+                        final currentUserId = portfolioUserId;
                         final hasWatered = currentUserId != null &&
                             actions.any(
                               (action) => action.userId == currentUserId,
@@ -1000,7 +997,9 @@ class _SeedPickerSheetState extends State<_SeedPickerSheet> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Your bloom is safe until the server confirms this harvest.',
+                isPortfolioDemo
+                    ? 'Your harvest and next seed are saved in this browser.'
+                    : 'Your bloom is safe until the server confirms this harvest.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),

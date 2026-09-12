@@ -8,6 +8,7 @@ import '../../../../core/supabase/supabase.dart';
 import '../../../auth/data/local_account_store.dart';
 import '../../data/magnetic_heart_realtime_service.dart';
 import '../../data/magnetic_heart_repository.dart';
+import '../../data/demo_magnetic_heart_repository.dart';
 import '../../domain/magnetic_heart_models.dart';
 import '../../domain/magnetic_heart_rules.dart';
 
@@ -15,9 +16,12 @@ class MagneticHeartController extends ChangeNotifier {
   MagneticHeartController({
     required this.account,
     MagneticHeartRepository? repository,
-  })  : repository = repository ?? MagneticHeartRepository(),
+  })  : repository = repository ??
+            (isPortfolioDemo
+                ? DemoMagneticHeartRepository()
+                : MagneticHeartRepository()),
         _state = MagneticHeartGameState(
-          localUserId: supabase.auth.currentUser?.id ?? '',
+          localUserId: portfolioUserId ?? '',
         );
 
   final LocalAccount account;
@@ -282,6 +286,14 @@ class MagneticHeartController extends ChangeNotifier {
   }
 
   Future<void> _ensureRealtime() async {
+    if (isPortfolioDemo) {
+      if (_disposed || _state.room == null) return;
+      _update(_state.copyWith(
+          realtimeStatus: MagneticHeartRealtimeStatus.connected,
+          onlineUserIds:
+              _state.members.map((member) => member.userId).toSet()));
+      return;
+    }
     if (_disposed || _realtime != null) return;
     final room = _state.room;
     final member = _state.localMember;
@@ -678,6 +690,10 @@ class MagneticHeartController extends ChangeNotifier {
 
   void tick(Duration elapsed) {
     if (_disposed) return;
+    if (isPortfolioDemo && _state.isPlaying) {
+      _state = _state.copyWith(
+          remoteTargetPosition: const Offset(.5, .58), remoteIsDragging: true);
+    }
     final previous = _lastTick;
     _lastTick = elapsed;
     if (previous == null) return;
@@ -915,6 +931,10 @@ class MagneticHeartController extends ChangeNotifier {
   }
 
   Future<void> setAppActive(bool active) async {
+    if (isPortfolioDemo) {
+      if (!active) endDrag();
+      return;
+    }
     if (!active) {
       endDrag();
       try {
@@ -1024,6 +1044,9 @@ class MagneticHeartController extends ChangeNotifier {
     if (_disposed) return;
     _disposed = true;
     unawaited(_cancelBindings());
+    if (repository is DemoMagneticHeartRepository) {
+      unawaited((repository as DemoMagneticHeartRepository).dispose());
+    }
     super.dispose();
   }
 }

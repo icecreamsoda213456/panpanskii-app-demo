@@ -47,12 +47,12 @@ const _kQuickActionOrder = <_HomeShortcut>[
 /// constant so a test can assert the exact wording never changes.
 @visibleForTesting
 const String kHomePandaMessage =
-    'A warm hello for the love of your life. Every little moment is better together.';
+    'Hey Alex, here is to slow mornings, little adventures, and making time for each other. With love, Sam.';
 
 /// The demo note typed out under the koala portrait.
 @visibleForTesting
 const String kHomeKoalaMessage =
-    'Here is to the person who makes ordinary days feel special. Welcome to your cozy space.';
+    'Hey Sam, you make ordinary days worth remembering. Our next little adventure is just around the corner. Love, Alex.';
 
 /// Exposes immutable dashboard route metadata to focused widget tests without
 /// booting the whole screen (and with it Supabase).
@@ -1664,7 +1664,7 @@ class _PixelHeroTitle extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                'Hi my panpanskii, this Mobile app is for you only.',
+                'Alex + Sam\'s shared space.',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(

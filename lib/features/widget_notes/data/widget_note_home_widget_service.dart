@@ -27,6 +27,7 @@ class WidgetNoteHomeWidgetService {
   /// refresh even while the app is closed. Every failure is swallowed so the
   /// app itself never breaks because the widget could not refresh.
   static Future<void> syncLatest() async {
+    if (isPortfolioDemo) return;
     try {
       // `Supabase.initialize()` already restores the persisted session from local
       // storage (including in a fresh background isolate after a push), so we

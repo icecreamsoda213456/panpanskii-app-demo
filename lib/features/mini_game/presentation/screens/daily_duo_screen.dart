@@ -140,7 +140,7 @@ class _DailyDuoScreenState extends State<DailyDuoScreen> {
               );
             }
             final answers = snapshot.data ?? const <DailyDuoAnswer>[];
-            final currentUserId = supabase.auth.currentUser?.id;
+            final currentUserId = portfolioUserId;
             final mine = _firstAnswer(
               answers,
               (answer) => answer.userId == currentUserId,
@@ -627,16 +627,14 @@ class _DuoStatusCard extends StatelessWidget {
                       _ChoicePill(
                         label: '${mine!.username}: '
                             '${round.options[mine!.optionIndex]}',
-                        accent: matched
-                            ? const Color(0xFFFFC857)
-                            : scheme.primary,
+                        accent:
+                            matched ? const Color(0xFFFFC857) : scheme.primary,
                       ),
                       _ChoicePill(
                         label: '${partner!.username}: '
                             '${round.options[partner!.optionIndex]}',
-                        accent: matched
-                            ? const Color(0xFFFFC857)
-                            : scheme.tertiary,
+                        accent:
+                            matched ? const Color(0xFFFFC857) : scheme.tertiary,
                       ),
                     ],
                   ),

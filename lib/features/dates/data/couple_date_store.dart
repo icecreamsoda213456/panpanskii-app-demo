@@ -86,7 +86,7 @@ class CoupleDatePlan {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  bool get isMine => supabase.auth.currentUser?.id == userId;
+  bool get isMine => portfolioUserId == userId;
   bool get isShared => visibility == CoupleDateVisibility.shared;
 
   DateTime? get reminderAt {
@@ -128,6 +128,7 @@ class CoupleDateStore {
       'id, user_id, username, mascot, title, notes, category, visibility, starts_at, reminder_minutes, created_at, updated_at';
 
   Stream<List<CoupleDatePlan>> watchPlans() {
+    if (isPortfolioDemo) return demo.watch('couple_dates').map(_mapAndSort);
     return supabase
         .from('couple_dates')
         .stream(primaryKey: ['id']).map(_mapAndSort);
@@ -137,6 +138,13 @@ class CoupleDateStore {
     DateTime? from,
     int limit = 200,
   }) async {
+    if (isPortfolioDemo) {
+      return _mapAndSort(demo.rows('couple_dates'))
+          .where((plan) => !plan.startsAt.isBefore(
+              from ?? DateTime.now().subtract(const Duration(days: 1))))
+          .take(limit)
+          .toList();
+    }
     final start = (from ?? DateTime.now().subtract(const Duration(days: 1)))
         .toUtc()
         .toIso8601String();
@@ -160,6 +168,30 @@ class CoupleDateStore {
     required DateTime startsAt,
     required int? reminderMinutes,
   }) async {
+    if (isPortfolioDemo) {
+      if (id != null &&
+          !demo.rows('couple_dates').any(
+              (row) => row['id'] == id && row['user_id'] == DemoStore.userId)) {
+        throw StateError('Only your own demo plans can be edited.');
+      }
+      if (notes.trim().length > 1000) {
+        throw const FormatException('Notes can use up to 1000 characters.');
+      }
+      if (reminderMinutes != null &&
+          !const {0, 10, 60, 1440}.contains(reminderMinutes)) {
+        throw const FormatException('Choose a valid reminder time.');
+      }
+      return CoupleDatePlan.fromJson(await demo.save('couple_dates', {
+        ...DemoStore.profile,
+        if (id != null) 'id': id,
+        'title': DemoStore.requireText(title, max: 120),
+        'notes': notes.trim(),
+        'category': category.name,
+        'visibility': visibility.name,
+        'starts_at': startsAt.toUtc().toIso8601String(),
+        'reminder_minutes': reminderMinutes,
+      }));
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before saving a plan.');
@@ -234,6 +266,13 @@ class CoupleDateStore {
   }
 
   Future<void> deletePlan(CoupleDatePlan plan) async {
+    if (isPortfolioDemo) {
+      if (!plan.isMine) {
+        throw StateError('Only your own demo plans can be deleted.');
+      }
+      return demo
+          .remove('couple_dates', {'id': plan.id, 'user_id': DemoStore.userId});
+    }
     if (!plan.isMine) {
       throw StateError('Only the person who made this plan can delete it.');
     }

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -118,6 +119,21 @@ class SendLoveStore {
     String? attachmentName,
     String? attachmentContentType,
   }) async {
+    if (isPortfolioDemo) {
+      if (attachmentBytes != null && attachmentBytes.length > 750000) {
+        throw const FormatException(
+            'For this local demo, choose an image under 750 KB.');
+      }
+      final url = attachmentBytes == null
+          ? null
+          : 'data:${attachmentContentType ?? 'image/jpeg'};base64,${base64Encode(attachmentBytes)}';
+      final row = await demo.save('send_love_letters', {
+        ...DemoStore.profile,
+        'message': DemoStore.requireText(message),
+        'attachment_url': url
+      });
+      return SentLove.fromJson(row, attachmentUrl: url);
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before sending love.');
@@ -167,6 +183,13 @@ class SendLoveStore {
   }
 
   Future<List<SentLove>> loadSentLoveLetters() async {
+    if (isPortfolioDemo) {
+      return demo
+          .rows('send_love_letters', order: 'created_at', descending: true)
+          .map((row) => SentLove.fromJson(row,
+              attachmentUrl: row['attachment_url'] as String?))
+          .toList();
+    }
     final rows = await supabase
         .from('send_love_letters')
         .select(_columns)
@@ -187,12 +210,15 @@ class SendLoveStore {
   }
 
   Future<SentLoveReactionSummary> loadReactionSummary(String letterId) async {
-    final userId = supabase.auth.currentUser?.id;
-    final rows = await supabase
-        .from('send_love_reactions')
-        .select(_reactionColumns)
-        .eq('letter_id', letterId)
-        .order('created_at', ascending: true);
+    final userId = portfolioUserId;
+    final rows = isPortfolioDemo
+        ? demo.rows('send_love_reactions',
+            where: {'letter_id': letterId}, order: 'created_at')
+        : await supabase
+            .from('send_love_reactions')
+            .select(_reactionColumns)
+            .eq('letter_id', letterId)
+            .order('created_at', ascending: true);
 
     final counts = <String, int>{};
     final reactors = <SentLoveReactor>[];
@@ -239,6 +265,9 @@ class SendLoveStore {
     required String reaction,
     required String? currentReaction,
   }) async {
+    if (isPortfolioDemo) {
+      return demo.react('send_love_reactions', 'letter_id', letterId, reaction);
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before reacting.');
@@ -266,6 +295,13 @@ class SendLoveStore {
   }
 
   Future<List<SentLoveComment>> loadComments(String letterId) async {
+    if (isPortfolioDemo) {
+      return demo
+          .rows('send_love_comments',
+              where: {'letter_id': letterId}, order: 'created_at')
+          .map(SentLoveComment.fromJson)
+          .toList();
+    }
     final rows = await supabase
         .from('send_love_comments')
         .select(_commentColumns)
@@ -281,6 +317,15 @@ class SendLoveStore {
     required String letterId,
     required String message,
   }) async {
+    if (isPortfolioDemo) {
+      if (message.trim().isEmpty) return;
+      await demo.save('send_love_comments', {
+        ...DemoStore.profile,
+        'letter_id': letterId,
+        'message': DemoStore.requireText(message)
+      });
+      return;
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before commenting.');

@@ -65,7 +65,7 @@ class _PhotoBoothScreenState extends State<PhotoBoothScreen>
   bool _choosingAnotherSession = false;
   String? _localResultFrameStyle;
 
-  String? get _currentUserId => supabase.auth.currentUser?.id;
+  String? get _currentUserId => portfolioUserId;
 
   PhotoBoothParticipant? get _myParticipant {
     final userId = _currentUserId;

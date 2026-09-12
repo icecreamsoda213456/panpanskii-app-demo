@@ -75,6 +75,10 @@ class DailyDuoStore {
   }
 
   Stream<List<DailyDuoAnswer>> watchAnswers(String dayKey) {
+    if (isPortfolioDemo) {
+      return demo.watch('daily_duo_answers', where: {'day_key': dayKey}).map(
+          (rows) => rows.map(DailyDuoAnswer.fromJson).toList());
+    }
     return supabase
         .from('daily_duo_answers')
         .stream(primaryKey: ['id'])
@@ -87,6 +91,34 @@ class DailyDuoStore {
     required DailyDuoRound round,
     required int optionIndex,
   }) async {
+    if (isPortfolioDemo) {
+      if (optionIndex < 0 || optionIndex >= round.options.length) {
+        throw StateError('That answer is not available anymore.');
+      }
+      await demo.transaction((tables) {
+        if (!(tables['daily_duo_answers'] ?? []).any((row) =>
+            row['day_key'] == round.dayKey &&
+            row['user_id'] == DemoStore.partnerId)) {
+          demo.put(tables, 'daily_duo_answers', {
+            ...DemoStore.partner,
+            'day_key': round.dayKey,
+            'option_index': 0
+          }, keys: [
+            'day_key',
+            'user_id'
+          ]);
+        }
+        demo.put(tables, 'daily_duo_answers', {
+          ...DemoStore.profile,
+          'day_key': round.dayKey,
+          'option_index': optionIndex
+        }, keys: [
+          'day_key',
+          'user_id'
+        ]);
+      });
+      return;
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before playing Daily Duo.');
@@ -136,4 +168,3 @@ class DailyDuoStore {
     return value.codeUnits.fold<int>(0, (sum, code) => sum * 31 + code).abs();
   }
 }
-

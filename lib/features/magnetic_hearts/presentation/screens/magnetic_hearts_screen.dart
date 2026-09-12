@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import '../../../../demo_config.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:gal/gal.dart';
+import '../../../../core/media/save_png.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../auth/data/local_account_store.dart';
@@ -105,8 +106,9 @@ class _MagneticHeartsScreenState extends State<MagneticHeartsScreen>
   }
 
   Future<void> _shareRoomCode(String code) async {
-    final message =
-        'Join my Magnetic Hearts room in Panpanskii. Room code: $code';
+    final message = isPortfolioDemo
+        ? 'Try local Magnetic Hearts practice in the Panpanskii demo. Code: $code'
+        : 'Join my Magnetic Hearts room in Panpanskii. Room code: $code';
     try {
       await _shareChannel.invokeMethod<void>('shareText', {'text': message});
     } catch (_) {
@@ -131,15 +133,8 @@ class _MagneticHeartsScreenState extends State<MagneticHeartsScreen>
       if (bytes == null || bytes.isEmpty) {
         throw StateError('The heart memory could not be prepared.');
       }
-      if (!await Gal.hasAccess()) {
-        final granted = await Gal.requestAccess();
-        if (!granted) throw StateError('Gallery permission was not granted.');
-      }
-      await Gal.putImageBytes(
-        bytes,
-        album: 'Panpanskii',
-        name: 'magnetic-hearts-${DateTime.now().millisecondsSinceEpoch}',
-      );
+      await savePng(
+          bytes, 'magnetic-hearts-${DateTime.now().millisecondsSinceEpoch}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Magnetic Hearts memory saved.')),
@@ -312,7 +307,9 @@ class _MagneticHeader extends StatelessWidget {
                       ),
                 ),
                 Text(
-                  'Bring your hearts together in real time',
+                  isPortfolioDemo
+                      ? 'Local practice with a simulated partner'
+                      : 'Bring your hearts together in real time',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -375,7 +372,9 @@ class _EntryLobby extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Create a private room or enter the code from your person.',
+            isPortfolioDemo
+                ? 'Practice room: DEMO01. Sam is a simulated partner.'
+                : 'Create a private room or enter the code from your person.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Colors.white60,
@@ -424,7 +423,7 @@ class _EntryLobby extends StatelessWidget {
             ],
             decoration: InputDecoration(
               counterText: '',
-              hintText: 'LOVE82',
+              hintText: isPortfolioDemo ? 'DEMO01' : 'LOVE82',
               hintStyle: TextStyle(
                 color: Colors.white.withValues(alpha: .22),
                 letterSpacing: 0,
@@ -563,7 +562,9 @@ class _RoomLobby extends StatelessWidget {
     if (state.localMember?.isReady == true && !state.bothReady) {
       return 'You are ready. Waiting for your person...';
     }
-    return 'Both players press Ready, then drag together.';
+    return isPortfolioDemo
+        ? 'Your practice partner is ready.'
+        : 'Both players press Ready, then drag together.';
   }
 }
 
@@ -891,7 +892,7 @@ class _PlayerChip extends StatelessWidget {
                         : member!.isReady
                             ? 'Ready'
                             : online
-                                ? 'Online'
+                                ? (isPortfolioDemo ? 'Local demo' : 'Online')
                                 : 'Offline',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: member?.isReady == true

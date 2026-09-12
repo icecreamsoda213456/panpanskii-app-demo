@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../config/app_update_config.dart';
+import '../demo_config.dart';
 import '../models/app_update_info.dart';
 import '../services/app_update_service.dart';
 
@@ -16,6 +17,7 @@ class AppUpdateCoordinator {
   static bool _automaticCheckScheduled = false;
 
   static void scheduleAutomaticCheck(BuildContext context) {
+    if (isPortfolioDemo || kIsWeb) return;
     if (_automaticCheckScheduled) {
       return;
     }
@@ -31,6 +33,13 @@ class AppUpdateCoordinator {
     BuildContext context, {
     bool showLatestMessage = false,
   }) async {
+    if (isPortfolioDemo || kIsWeb) {
+      if (showLatestMessage) {
+        _showSnackBar(
+            context, 'This browser demo receives updates through its website.');
+      }
+      return;
+    }
     if (_isChecking ||
         _isDialogVisible ||
         !Platform.isAndroid ||

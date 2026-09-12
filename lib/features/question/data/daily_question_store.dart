@@ -44,7 +44,7 @@ class DailyQuestionComment {
 class DailyQuestionStore {
   static final _v2Start = DateTime.utc(2026, 7, 28);
 
-  String? get currentUserId => supabase.auth.currentUser?.id;
+  String? get currentUserId => portfolioUserId;
 
   DailyQuestion questionForNow() => questionForDate(DateTime.now());
 
@@ -70,6 +70,12 @@ class DailyQuestionStore {
   }
 
   Stream<List<DailyQuestionComment>> watchComments(String dayKey) {
+    if (isPortfolioDemo) {
+      return demo
+          .watch('daily_question_comments',
+              where: {'day_key': dayKey}, order: 'created_at')
+          .map((rows) => rows.map(DailyQuestionComment.fromJson).toList());
+    }
     return supabase
         .from('daily_question_comments')
         .stream(primaryKey: ['id'])
@@ -86,6 +92,14 @@ class DailyQuestionStore {
     required String dayKey,
     required String message,
   }) async {
+    if (isPortfolioDemo) {
+      await demo.save('daily_question_comments', {
+        ...DemoStore.profile,
+        'day_key': dayKey,
+        'message': DemoStore.requireText(message, max: 600)
+      });
+      return;
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before answering.');
@@ -115,6 +129,10 @@ class DailyQuestionStore {
   }
 
   Future<void> deleteComment(String commentId) async {
+    if (isPortfolioDemo) {
+      return demo.remove('daily_question_comments',
+          {'id': commentId, 'user_id': DemoStore.userId});
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before deleting an answer.');

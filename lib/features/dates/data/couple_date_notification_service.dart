@@ -8,6 +8,7 @@ import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as timezone;
 
 import 'couple_date_store.dart';
+import '../../../demo_config.dart';
 
 class CoupleDateReminderAccess {
   const CoupleDateReminderAccess({
@@ -71,6 +72,7 @@ class CoupleDateNotificationService {
   static bool _isInitialized = false;
 
   static Future<void> syncUpcomingPlans() async {
+    if (isPortfolioDemo) return;
     try {
       final plans = await CoupleDateStore().loadUpcomingPlans();
       await syncPlans(plans);
@@ -80,6 +82,7 @@ class CoupleDateNotificationService {
   }
 
   static Future<void> syncPlans(List<CoupleDatePlan> plans) async {
+    if (isPortfolioDemo) return;
     try {
       await _initialize();
       final now = DateTime.now();
@@ -116,6 +119,7 @@ class CoupleDateNotificationService {
   }
 
   static Future<void> cancelPlan(String planId) async {
+    if (isPortfolioDemo) return;
     try {
       await _initialize();
       await _notifications.cancel(id: _notificationId(planId));
@@ -125,6 +129,9 @@ class CoupleDateNotificationService {
   }
 
   static Future<void> schedulePlan(CoupleDatePlan plan) async {
+    if (isPortfolioDemo) {
+      throw StateError('Device alarms are unavailable in this browser demo.');
+    }
     await _initialize();
     final reminderAt = plan.reminderAt;
     if (reminderAt == null) {
@@ -148,6 +155,7 @@ class CoupleDateNotificationService {
   }
 
   static Future<bool> requestNotificationPermission() async {
+    if (isPortfolioDemo) return false;
     await _initialize();
     final android = _notifications.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
@@ -164,6 +172,12 @@ class CoupleDateNotificationService {
 
   static Future<CoupleDateReminderAccess>
       requestProminentReminderAccess() async {
+    if (isPortfolioDemo) {
+      return const CoupleDateReminderAccess(
+          notificationsAllowed: false,
+          exactTimingAllowed: false,
+          fullScreenAllowed: false);
+    }
     await _initialize();
     final android = _notifications.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
@@ -201,6 +215,9 @@ class CoupleDateNotificationService {
   }
 
   static Future<void> showTestReminder() async {
+    if (isPortfolioDemo) {
+      throw StateError('Device alarms are unavailable in this browser demo.');
+    }
     await _initialize();
     const title = 'Our Dates reminder test';
     const body =
@@ -216,6 +233,9 @@ class CoupleDateNotificationService {
   }
 
   static Future<void> scheduleTestReminder() async {
+    if (isPortfolioDemo) {
+      throw StateError('Device alarms are unavailable in this browser demo.');
+    }
     await _initialize();
     final android = _notifications.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();

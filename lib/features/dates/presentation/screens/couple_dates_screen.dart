@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../../demo_config.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
@@ -112,6 +113,14 @@ class _CoupleDatesScreenState extends State<CoupleDatesScreen> {
   }
 
   Future<void> _setupAndTestReminders() async {
+    if (isPortfolioDemo) {
+      await _showReminderMessage(
+        title: 'Browser demo',
+        message:
+            'Plans are saved locally. Device alarms and push notifications are unavailable here.',
+      );
+      return;
+    }
     final shouldContinue = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -525,6 +534,7 @@ class _MonthCalendar extends StatelessWidget {
               mainAxisSpacing: 3,
               crossAxisSpacing: 3,
               childAspectRatio: .92,
+              mainAxisExtent: isPortfolioDemo ? 48 : null,
             ),
             itemBuilder: (context, index) {
               final day = gridStart.add(Duration(days: index));
@@ -929,7 +939,9 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
     _visibility = plan?.visibility ?? CoupleDateVisibility.shared;
     _savedPlanId = plan?.id;
     _reminder = plan == null
-        ? CoupleDateReminder.oneHour
+        ? (isPortfolioDemo
+            ? CoupleDateReminder.none
+            : CoupleDateReminder.oneHour)
         : CoupleDateReminder.fromMinutes(plan.reminderMinutes);
   }
 
@@ -1126,7 +1138,7 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
       _error = null;
     });
     try {
-      if (_reminder != CoupleDateReminder.none) {
+      if (!isPortfolioDemo && _reminder != CoupleDateReminder.none) {
         final access = await CoupleDateNotificationService
             .requestProminentReminderAccess();
         if (!mounted) {
@@ -1162,7 +1174,9 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
         reminderMinutes: _reminder.minutes,
       );
       _savedPlanId = savedPlan.id;
-      if (savedPlan.reminderAt == null) {
+      if (isPortfolioDemo) {
+        // Browser demo keeps plans locally without scheduling device alarms.
+      } else if (savedPlan.reminderAt == null) {
         await CoupleDateNotificationService.cancelPlan(savedPlan.id);
       } else {
         await CoupleDateNotificationService.schedulePlan(savedPlan);
@@ -1298,7 +1312,9 @@ class _DatePlanEditorState extends State<_DatePlanEditor> {
               prefixIcon: Icon(Icons.notifications_active_rounded),
             ),
             items: [
-              for (final reminder in CoupleDateReminder.values)
+              for (final reminder in (isPortfolioDemo
+                  ? [CoupleDateReminder.none]
+                  : CoupleDateReminder.values))
                 DropdownMenuItem(
                   value: reminder,
                   child: Text(reminder.label),

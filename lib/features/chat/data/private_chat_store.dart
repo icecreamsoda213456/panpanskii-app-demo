@@ -1,6 +1,5 @@
 import '../../../core/supabase/supabase.dart';
 import '../../../core/notifications/push_notification_service.dart';
-import '../../../demo_config.dart';
 import '../../auth/data/local_account_store.dart';
 
 class PrivateChatMessage {
@@ -20,7 +19,7 @@ class PrivateChatMessage {
   final String message;
   final DateTime createdAt;
 
-  bool get isMine => supabase.auth.currentUser?.id == userId;
+  bool get isMine => portfolioUserId == userId;
 
   factory PrivateChatMessage.fromJson(Map<String, dynamic> json) {
     return PrivateChatMessage(
@@ -55,7 +54,7 @@ class PrivateChatReaction {
   final String reaction;
   final DateTime createdAt;
 
-  bool get isMine => supabase.auth.currentUser?.id == userId;
+  bool get isMine => portfolioUserId == userId;
 
   factory PrivateChatReaction.fromJson(Map<String, dynamic> json) {
     return PrivateChatReaction(
@@ -78,33 +77,9 @@ class PrivateChatStore {
 
   Stream<List<PrivateChatMessage>> watchMessages() {
     if (isPortfolioDemo) {
-      final now = DateTime.now();
-      return Stream.value([
-        PrivateChatMessage(
-          id: 'demo-message-1',
-          userId: 'demo-panda',
-          username: 'Panda',
-          mascot: AccountMascot.panda,
-          message: 'Good morning! Leaving a little sunshine here for you.',
-          createdAt: now.subtract(const Duration(minutes: 42)),
-        ),
-        PrivateChatMessage(
-          id: 'demo-message-2',
-          userId: 'demo-koala',
-          username: 'Koala',
-          mascot: AccountMascot.koala,
-          message: 'I found it. Adding this to our cozy wins for today!',
-          createdAt: now.subtract(const Duration(minutes: 35)),
-        ),
-        PrivateChatMessage(
-          id: 'demo-message-3',
-          userId: 'demo-panda',
-          username: 'Panda',
-          mascot: AccountMascot.panda,
-          message: 'Garden check later? I think our sunflower is growing.',
-          createdAt: now.subtract(const Duration(minutes: 18)),
-        ),
-      ]);
+      return demo
+          .watch('private_chat_messages', order: 'created_at')
+          .map((rows) => rows.map(PrivateChatMessage.fromJson).toList());
     }
     return supabase
         .from('private_chat_messages')
@@ -123,17 +98,9 @@ class PrivateChatStore {
 
   Stream<List<PrivateChatReaction>> watchReactions() {
     if (isPortfolioDemo) {
-      return Stream.value([
-        PrivateChatReaction(
-          id: 'demo-reaction-1',
-          messageId: 'demo-message-1',
-          userId: 'demo-koala',
-          username: 'Koala',
-          mascot: AccountMascot.koala,
-          reaction: 'love',
-          createdAt: DateTime.now().subtract(const Duration(minutes: 40)),
-        ),
-      ]);
+      return demo
+          .watch('private_chat_reactions')
+          .map((rows) => rows.map(PrivateChatReaction.fromJson).toList());
     }
     return supabase
         .from('private_chat_reactions')
@@ -148,6 +115,10 @@ class PrivateChatStore {
     required String reaction,
     required String? currentReaction,
   }) async {
+    if (isPortfolioDemo) {
+      return demo.react(
+          'private_chat_reactions', 'message_id', messageId, reaction);
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before reacting.');
@@ -178,6 +149,15 @@ class PrivateChatStore {
     required LocalAccount account,
     required String message,
   }) async {
+    if (isPortfolioDemo) {
+      if (message.trim().isEmpty) return;
+      await demo.save('private_chat_messages', {
+        ...DemoStore.profile,
+        'room_id': _roomId,
+        'message': DemoStore.requireText(message)
+      });
+      return;
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before chatting.');

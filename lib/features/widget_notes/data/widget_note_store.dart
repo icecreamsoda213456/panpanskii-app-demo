@@ -1,4 +1,6 @@
 import 'dart:typed_data';
+import 'dart:convert';
+import '../../../core/demo/demo_media.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -26,7 +28,7 @@ class WidgetNote {
   final String? caption;
   final DateTime createdAt;
 
-  bool get isMine => supabase.auth.currentUser?.id == userId;
+  bool get isMine => portfolioUserId == userId;
 
   static WidgetNote fromJson(Map<String, dynamic> json) {
     return WidgetNote(
@@ -55,6 +57,18 @@ class WidgetNoteStore {
     required Uint8List pngBytes,
     String? caption,
   }) async {
+    if (isPortfolioDemo) {
+      if (pngBytes.length > 750000) {
+        throw const FormatException(
+            'Please use a smaller drawing for this demo.');
+      }
+      final row = await demo.save('widget_notes', {
+        ...DemoStore.profile,
+        'storage_path': 'data:image/png;base64,${base64Encode(pngBytes)}',
+        'caption': caption?.trim()
+      });
+      return WidgetNote.fromJson(row);
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw Exception('Kailangang naka-sign in ka bago magpadala ng note.');
@@ -86,7 +100,8 @@ class WidgetNoteStore {
             'storage_path': path,
             'caption': cleanCaption.isEmpty ? null : cleanCaption,
           })
-          .select('id, user_id, username, mascot, storage_path, caption, created_at')
+          .select(
+              'id, user_id, username, mascot, storage_path, caption, created_at')
           .single();
 
       await PushNotificationService.sendPush(
@@ -112,6 +127,13 @@ class WidgetNoteStore {
 
   /// The newest note from the partner, or null when there is none yet.
   Future<WidgetNote?> fetchLatestPartnerNote() async {
+    if (isPortfolioDemo) {
+      final rows = demo.rows('widget_notes',
+          where: {'user_id': DemoStore.partnerId},
+          order: 'created_at',
+          descending: true);
+      return rows.isEmpty ? null : WidgetNote.fromJson(rows.first);
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       return null;
@@ -120,7 +142,8 @@ class WidgetNoteStore {
     try {
       final rows = await supabase
           .from('widget_notes')
-          .select('id, user_id, username, mascot, storage_path, caption, created_at')
+          .select(
+              'id, user_id, username, mascot, storage_path, caption, created_at')
           .neq('user_id', user.id)
           .order('created_at', ascending: false)
           .limit(1);
@@ -135,6 +158,7 @@ class WidgetNoteStore {
 
   /// Downloads the drawing bytes for a stored note.
   Future<Uint8List> downloadNotePng(String storagePath) async {
+    if (isPortfolioDemo) return DemoMedia.bytes(storagePath);
     return supabase.storage.from(bucket).download(storagePath);
   }
 
@@ -142,6 +166,7 @@ class WidgetNoteStore {
   /// (see supabase_widget_notes.sql), so this never expires — safer for the
   /// widget than signed URLs which die after at most one week.
   static String publicNoteUrl(String storagePath) {
+    if (isPortfolioDemo) return storagePath;
     return supabase.storage.from(bucket).getPublicUrl(storagePath);
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/presentation/pan_ui.dart';
+import '../../../../demo_config.dart';
 import '../../../auth/data/local_account_store.dart';
 import '../../../home/presentation/widgets/scene_widgets.dart';
 import '../../data/private_chat_store.dart';
@@ -203,7 +204,7 @@ class _LiveBadge extends StatelessWidget {
             const Icon(Icons.circle, size: 8, color: Color(0xFF9BE0BC)),
             const SizedBox(width: 6),
             Text(
-              'Live',
+              isPortfolioDemo ? 'Local demo' : 'Live',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w900,

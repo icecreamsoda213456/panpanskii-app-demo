@@ -7,7 +7,9 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../demo_config.dart';
+import '../core/demo/demo_chrome.dart';
+import '../core/demo/demo_notes_screen.dart';
+import '../features/photobooth/presentation/screens/demo_photobooth_screen.dart';
 import '../core/notifications/push_notification_service.dart';
 import '../core/presentation/pan_ui.dart';
 import '../core/supabase/supabase.dart';
@@ -44,6 +46,8 @@ class PanpanskiiApp extends StatefulWidget {
 
 class _PanpanskiiAppState extends State<PanpanskiiApp>
     with WidgetsBindingObserver {
+  GoRouter? _demoRouter;
+  int _demoRevision = 0;
   static const _themeModeKey = 'panpanskii_theme_mode';
   static const _backgroundLockGracePeriod = Duration(minutes: 2);
 
@@ -71,6 +75,7 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
 
   @override
   void dispose() {
+    _demoRouter?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _clearBackgroundLockState();
     _stopRealtimeNotifications();
@@ -79,6 +84,7 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (isPortfolioDemo) return;
     if (state == AppLifecycleState.resumed) {
       _resumeFromBackground();
       return;
@@ -136,6 +142,7 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
     setState(() {
       _themeMode = savedMode == 'dark' ? ThemeMode.dark : ThemeMode.light;
     });
+    _demoRouter?.refresh();
   }
 
   Future<void> _toggleTheme() async {
@@ -143,6 +150,7 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
     setState(() {
       _themeMode = nextMode;
     });
+    _demoRouter?.refresh();
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(
       _themeModeKey,
@@ -155,7 +163,7 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
       _clearBackgroundLockState();
       setState(() {
         _account = const LocalAccount(
-          username: 'Guest Owner',
+          username: 'Alex',
           mascot: AccountMascot.panda,
           isBiometricEnabled: false,
         );
@@ -453,9 +461,9 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final router = GoRouter(
+  GoRouter _createRouter() {
+    return GoRouter(
+      requestFocus: !isPortfolioDemo,
       redirect: (context, state) {
         if (_isLoadingAccount) {
           return null;
@@ -585,8 +593,11 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
         ),
         GoRoute(
           path: '/photobooth',
-          pageBuilder: (context, state) =>
-              _page(state, PhotoBoothScreen(account: _account!)),
+          pageBuilder: (context, state) => _page(
+              state,
+              isPortfolioDemo
+                  ? const DemoPhotoBoothScreen()
+                  : PhotoBoothScreen(account: _account!)),
         ),
         GoRoute(
           path: '/photobooth-gallery',
@@ -605,8 +616,11 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
         ),
         GoRoute(
           path: '/widget-notes-diagnostics',
-          pageBuilder: (context, state) =>
-              _page(state, const WidgetNoteDiagnosticsScreen()),
+          pageBuilder: (context, state) => _page(
+              state,
+              isPortfolioDemo
+                  ? const DemoNotesScreen()
+                  : const WidgetNoteDiagnosticsScreen()),
         ),
         for (final destination in _FeatureDestination.values.where(
           (destination) =>
@@ -625,7 +639,12 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
           ),
       ],
     );
+  }
 
+  @override
+  Widget build(BuildContext context) {
+    final router =
+        isPortfolioDemo ? (_demoRouter ??= _createRouter()) : _createRouter();
     return MaterialApp.router(
       title: 'Panpanskii',
       debugShowCheckedModeBanner: false,
@@ -633,12 +652,27 @@ class _PanpanskiiAppState extends State<PanpanskiiApp>
       theme: _PanpanskiiTheme.light(),
       darkTheme: _PanpanskiiTheme.dark(),
       routerConfig: router,
+      builder: (context, child) => isPortfolioDemo
+          ? DemoChrome(
+              onReset: () async {
+                await demo.reset();
+                if (mounted) {
+                  _demoRevision++;
+                  router.go('/');
+                  router.refresh();
+                }
+              },
+              child: child ?? const SizedBox.shrink(),
+            )
+          : child ?? const SizedBox.shrink(),
     );
   }
 
   CustomTransitionPage<void> _page(GoRouterState state, Widget child) {
     return CustomTransitionPage<void>(
-      key: state.pageKey,
+      key: isPortfolioDemo
+          ? ValueKey('${state.pageKey.value}:$_demoRevision')
+          : state.pageKey,
       transitionDuration: const Duration(milliseconds: 360),
       reverseTransitionDuration: const Duration(milliseconds: 260),
       child: child,

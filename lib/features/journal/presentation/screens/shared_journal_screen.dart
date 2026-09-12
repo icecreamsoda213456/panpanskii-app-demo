@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/presentation/pan_ui.dart';
+import '../../../../core/supabase/supabase.dart';
 import '../../../auth/data/local_account_store.dart';
 import '../../../home/presentation/widgets/scene_widgets.dart';
 import '../../data/shared_journal_store.dart';
@@ -37,8 +38,9 @@ class _SharedJournalScreenState extends State<SharedJournalScreen> {
   }
 
   Future<void> _restoreDraft() async {
-    final preferences = await SharedPreferences.getInstance();
-    final draft = preferences.getString(_draftKey);
+    final draft = isPortfolioDemo
+        ? await demo.loadDraft(_draftKey)
+        : (await SharedPreferences.getInstance()).getString(_draftKey);
     if (mounted && _bodyController.text.isEmpty && draft != null) {
       _bodyController.text = draft;
       setState(() {});
@@ -46,6 +48,18 @@ class _SharedJournalScreenState extends State<SharedJournalScreen> {
   }
 
   Future<void> _saveDraft(String value) async {
+    if (isPortfolioDemo) {
+      try {
+        await demo.saveDraft(_draftKey, value);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Draft could not be saved. Browser storage may be full.')));
+        }
+      }
+      return;
+    }
     final preferences = await SharedPreferences.getInstance();
     if (value.trim().isEmpty) {
       await preferences.remove(_draftKey);
@@ -99,8 +113,7 @@ class _SharedJournalScreenState extends State<SharedJournalScreen> {
       }
       _titleController.clear();
       _bodyController.clear();
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.remove(_draftKey);
+      await _saveDraft('');
       if (!mounted) {
         return;
       }
@@ -113,7 +126,10 @@ class _SharedJournalScreenState extends State<SharedJournalScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hindi na-save. Check Supabase SQL.')),
+        const SnackBar(
+            content: Text(isPortfolioDemo
+                ? 'Could not save the entry. Browser storage may be full.'
+                : 'Hindi na-save. Check Supabase SQL.')),
       );
     } finally {
       if (mounted) {

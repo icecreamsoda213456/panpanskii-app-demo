@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/presentation/pan_ui.dart';
+import '../../../../demo_config.dart';
 import '../../../../features/auth/data/local_account_store.dart';
 import '../../data/widget_note_home_widget_service.dart';
 import '../../data/widget_note_store.dart';
@@ -131,12 +132,18 @@ class _WidgetNoteCanvasScreenState extends State<WidgetNoteCanvasScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Note sent! Makikita na ito sa widget nila. 🐨'),
+          content: Text(isPortfolioDemo
+              ? 'Drawing saved in this browser.'
+              : 'Note sent! Makikita na ito sa widget nila. 🐨'),
           behavior: SnackBarBehavior.floating,
           duration: Duration(milliseconds: 1800),
         ),
       );
-      context.pop();
+      if (isPortfolioDemo) {
+        context.go('/widget-notes-diagnostics');
+      } else {
+        context.pop();
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -170,7 +177,9 @@ class _WidgetNoteCanvasScreenState extends State<WidgetNoteCanvasScreen> {
           children: [
             PanFeatureHeader(
               title: 'Widget Note',
-              subtitle: 'Draw something to light up their home screen',
+              subtitle: isPortfolioDemo
+                  ? 'Local drawing'
+                  : 'Draw something to light up their home screen',
               leading: DecoratedBox(
                 decoration: BoxDecoration(
                   color: scheme.primaryContainer,
@@ -183,7 +192,8 @@ class _WidgetNoteCanvasScreenState extends State<WidgetNoteCanvasScreen> {
               ),
               trailing: const Icon(Icons.favorite_rounded),
               accentColor: scheme.primary,
-              onBack: () => context.pop(),
+              onBack: () =>
+                  context.canPop() ? context.pop() : context.go('/more'),
             ),
             Expanded(
               // Hindi scrollable ito — pinag-uusapan natin dito ang gesture:
@@ -209,8 +219,7 @@ class _WidgetNoteCanvasScreenState extends State<WidgetNoteCanvasScreen> {
                                 onPanStart: _onPanStart,
                                 onPanUpdate: _onPanUpdate,
                                 child: CustomPaint(
-                                  painter:
-                                      WidgetNotePainter(strokes: _strokes),
+                                  painter: WidgetNotePainter(strokes: _strokes),
                                   child: const SizedBox.expand(),
                                 ),
                               ),
@@ -288,8 +297,12 @@ class _WidgetNoteCanvasScreenState extends State<WidgetNoteCanvasScreen> {
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.send_rounded),
-              label: Text(_isSending ? 'Sending…' : 'Send to Widget'),
+                  : Icon(isPortfolioDemo
+                      ? Icons.save_rounded
+                      : Icons.send_rounded),
+              label: Text(isPortfolioDemo
+                  ? (_isSending ? 'Saving...' : 'Save drawing')
+                  : (_isSending ? 'Sending…' : 'Send to Widget')),
             ),
           ),
         ],

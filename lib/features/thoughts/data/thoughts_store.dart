@@ -78,6 +78,12 @@ class ThoughtsStore {
   static const _commentColumns = 'id, username, mascot, message, created_at';
 
   Future<List<ThoughtPost>> loadThoughts() async {
+    if (isPortfolioDemo) {
+      return demo
+          .rows('thought_posts', order: 'created_at', descending: true)
+          .map(ThoughtPost.fromJson)
+          .toList();
+    }
     final rows = await supabase
         .from('thought_posts')
         .select(_postColumns)
@@ -91,6 +97,11 @@ class ThoughtsStore {
     required LocalAccount account,
     required String body,
   }) async {
+    if (isPortfolioDemo) {
+      await demo.save('thought_posts',
+          {...DemoStore.profile, 'body': DemoStore.requireText(body)});
+      return;
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before writing thoughts.');
@@ -116,11 +127,13 @@ class ThoughtsStore {
   }
 
   Future<ThoughtReactionSummary> loadReactionSummary(String thoughtId) async {
-    final userId = supabase.auth.currentUser?.id;
-    final rows = await supabase
-        .from('thought_reactions')
-        .select(_reactionColumns)
-        .eq('thought_id', thoughtId);
+    final userId = portfolioUserId;
+    final rows = isPortfolioDemo
+        ? demo.rows('thought_reactions', where: {'thought_id': thoughtId})
+        : await supabase
+            .from('thought_reactions')
+            .select(_reactionColumns)
+            .eq('thought_id', thoughtId);
 
     final counts = <String, int>{};
     String? myReaction;
@@ -144,6 +157,9 @@ class ThoughtsStore {
     required String reaction,
     required String? currentReaction,
   }) async {
+    if (isPortfolioDemo) {
+      return demo.react('thought_reactions', 'thought_id', thoughtId, reaction);
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before reacting.');
@@ -171,6 +187,13 @@ class ThoughtsStore {
   }
 
   Future<List<ThoughtComment>> loadComments(String thoughtId) async {
+    if (isPortfolioDemo) {
+      return demo
+          .rows('thought_comments',
+              where: {'thought_id': thoughtId}, order: 'created_at')
+          .map(ThoughtComment.fromJson)
+          .toList();
+    }
     final rows = await supabase
         .from('thought_comments')
         .select(_commentColumns)
@@ -186,6 +209,15 @@ class ThoughtsStore {
     required String thoughtId,
     required String message,
   }) async {
+    if (isPortfolioDemo) {
+      if (message.trim().isEmpty) return;
+      await demo.save('thought_comments', {
+        ...DemoStore.profile,
+        'thought_id': thoughtId,
+        'message': DemoStore.requireText(message)
+      });
+      return;
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before commenting.');

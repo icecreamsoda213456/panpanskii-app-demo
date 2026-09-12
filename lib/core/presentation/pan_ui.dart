@@ -123,8 +123,10 @@ class PanLoadingSliver extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverFillRemaining(
-      hasScrollBody: false,
-      child: PanLoadingState(title: title, message: message),
+      hasScrollBody: true,
+      child: SingleChildScrollView(
+        child: PanLoadingState(title: title, message: message),
+      ),
     );
   }
 }

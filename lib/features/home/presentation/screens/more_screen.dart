@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/presentation/pan_ui.dart';
+import '../../../../demo_config.dart';
 
 /// Exposes the "More" tab entries so a test can prove they never repeat a card
 /// Home already shows.
@@ -96,7 +97,10 @@ class _ExploreTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => context.push(item.route),
+        onTap: () => context.push(
+            isPortfolioDemo && item.route == '/widget-notes'
+                ? '/widget-notes-diagnostics'
+                : item.route),
         // Hidden diagnostics: long-press the Widget Note tile to open the
         // widget-note chain check (account -> RLS -> URL -> widget data).
         onLongPress: item.route == '/widget-notes'

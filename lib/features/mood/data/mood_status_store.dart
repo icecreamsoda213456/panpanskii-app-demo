@@ -40,11 +40,19 @@ class MoodStatusStore {
   static const _lastChangedKey = 'mood_status_last_changed_at';
 
   Stream<List<MoodStatus>> watchStatuses() {
+    if (isPortfolioDemo) {
+      return demo
+          .watch('mood_statuses', order: 'updated_at', descending: true)
+          .map((rows) => rows.map(MoodStatus.fromJson).toList());
+    }
     return supabase.from('mood_statuses').stream(primaryKey: ['id']).map(
         (rows) => rows.map(MoodStatus.fromJson).toList());
   }
 
   Future<List<MoodStatus>> loadStatuses() async {
+    if (isPortfolioDemo) {
+      return demo.rows('mood_statuses').map(MoodStatus.fromJson).toList();
+    }
     final rows = await supabase
         .from('mood_statuses')
         .select(_columns)
@@ -53,6 +61,7 @@ class MoodStatusStore {
   }
 
   Future<Duration?> cooldownRemaining() async {
+    if (isPortfolioDemo) return null;
     final preferences = await SharedPreferences.getInstance();
     final raw = preferences.getString(_lastChangedKey);
     if (raw == null) return null;
@@ -66,6 +75,11 @@ class MoodStatusStore {
     required LocalAccount account,
     required String mood,
   }) async {
+    if (isPortfolioDemo) {
+      await demo.save('mood_statuses', {...DemoStore.profile, 'mood': mood},
+          keys: ['user_id']);
+      return;
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before setting your mood.');

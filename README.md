@@ -1,4 +1,9 @@
-# panpanskii_app
+# Panpanskii Portfolio Demo
+
+A Flutter relationship-app demo with fictional Alex + Sam profiles, interactive
+local data, a shared garden, and a Magnetic Hearts practice partner.
+
+See [DEMO.md](DEMO.md) for workflows, privacy boundaries, setup, and verification.
 
 A new Flutter project.
 

@@ -25,7 +25,7 @@ class SharedJournalEntry {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  bool get isMine => supabase.auth.currentUser?.id == userId;
+  bool get isMine => portfolioUserId == userId;
 
   factory SharedJournalEntry.fromJson(Map<String, dynamic> json) {
     return SharedJournalEntry(
@@ -53,6 +53,12 @@ class SharedJournalStore {
       'id, room_id, user_id, username, mascot, title, body, entry_date, created_at, updated_at';
 
   Stream<List<SharedJournalEntry>> watchEntries() {
+    if (isPortfolioDemo) {
+      return demo
+          .watch('shared_journal_entries',
+              order: 'entry_date', descending: true)
+          .map((rows) => rows.map(SharedJournalEntry.fromJson).toList());
+    }
     return supabase
         .from('shared_journal_entries')
         .stream(primaryKey: ['id'])
@@ -76,6 +82,20 @@ class SharedJournalStore {
     required String title,
     required String body,
   }) async {
+    if (isPortfolioDemo) {
+      await demo.save('shared_journal_entries', {
+        ...DemoStore.profile,
+        'room_id': _roomId,
+        'title': title.trim().isEmpty ? 'Tonight' : title.trim(),
+        'body': DemoStore.requireText(body),
+        'entry_date': _todayKey(DateTime.now())
+      }, keys: [
+        'room_id',
+        'user_id',
+        'entry_date'
+      ]);
+      return;
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before writing journal.');

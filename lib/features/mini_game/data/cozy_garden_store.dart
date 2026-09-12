@@ -1,6 +1,6 @@
 import '../../auth/data/local_account_store.dart';
 import '../../../core/supabase/supabase.dart';
-import '../../../demo_config.dart';
+import '../../../core/demo/demo_garden.dart';
 
 class CozyGardenState {
   const CozyGardenState({
@@ -189,20 +189,9 @@ class DailyDuoGardenBonusResult {
 class CozyGardenStore {
   Stream<CozyGardenState> watchGarden() {
     if (isPortfolioDemo) {
-      return Stream.value(
-        CozyGardenState(
-          plantType: 'sunflower',
-          growth: 72,
-          lastWateredBy: 'demo-koala',
-          wateredAt: DateTime.now().subtract(const Duration(minutes: 12)),
-          currentStreak: 4,
-          longestStreak: 9,
-          totalHarvests: 2,
-          cycleStartedAt: DateTime.now().subtract(const Duration(days: 5)),
-          lastCompletedDay: DateTime.now().subtract(const Duration(days: 1)),
-          lastHarvestedAt: DateTime.now().subtract(const Duration(days: 8)),
-        ),
-      );
+      return demo.watch('cozy_garden_state').map((rows) => rows.isEmpty
+          ? CozyGardenState.initial
+          : CozyGardenState.fromJson(rows.first));
     }
     return supabase
         .from('cozy_garden_state')
@@ -215,18 +204,8 @@ class CozyGardenStore {
 
   Stream<List<CozyGardenAction>> watchActions(String dayKey) {
     if (isPortfolioDemo) {
-      return Stream.value([
-        const CozyGardenAction(
-          userId: 'demo-panda',
-          username: 'Panda',
-          mascot: AccountMascot.panda,
-        ),
-        const CozyGardenAction(
-          userId: 'demo-koala',
-          username: 'Koala',
-          mascot: AccountMascot.koala,
-        ),
-      ]);
+      return demo.watch('cozy_garden_actions', where: {'day_key': dayKey}).map(
+          (rows) => rows.map(CozyGardenAction.fromJson).toList());
     }
     return supabase
         .from('cozy_garden_actions')
@@ -236,6 +215,11 @@ class CozyGardenStore {
   }
 
   Stream<List<CozyGardenUnlock>> watchUnlocks() {
+    if (isPortfolioDemo) {
+      return demo
+          .watch('cozy_garden_unlocks')
+          .map((rows) => rows.map(CozyGardenUnlock.fromJson).toList());
+    }
     return supabase
         .from('cozy_garden_unlocks')
         .stream(primaryKey: ['unlock_key']).map((rows) {
@@ -246,6 +230,11 @@ class CozyGardenStore {
   }
 
   Stream<List<CozyGardenBonusEvent>> watchBonusEvents(String dayKey) {
+    if (isPortfolioDemo) {
+      return demo.watch('cozy_garden_bonus_events', where: {
+        'day_key': dayKey
+      }).map((rows) => rows.map(CozyGardenBonusEvent.fromJson).toList());
+    }
     return supabase
         .from('cozy_garden_bonus_events')
         .stream(primaryKey: ['id'])
@@ -258,6 +247,12 @@ class CozyGardenStore {
   }
 
   Future<List<CozyGardenHarvest>> loadHarvests() async {
+    if (isPortfolioDemo) {
+      return demo
+          .rows('cozy_garden_harvests', order: 'harvested_at', descending: true)
+          .map(CozyGardenHarvest.fromJson)
+          .toList();
+    }
     final rows = await supabase
         .from('cozy_garden_harvests')
         .select()
@@ -276,6 +271,10 @@ class CozyGardenStore {
     required LocalAccount account,
     required String dayKey,
   }) async {
+    if (isPortfolioDemo) {
+      return CozyGardenState.fromJson(
+          await DemoGarden(demo).water(dayKey, todayKey()));
+    }
     final user = supabase.auth.currentUser;
     if (user == null) {
       throw StateError('Please log in again before watering the garden.');
@@ -295,6 +294,11 @@ class CozyGardenStore {
   Future<CozyGardenHarvestResult> harvestGarden({
     required String nextPlant,
   }) async {
+    if (isPortfolioDemo) {
+      return CozyGardenHarvestResult(
+          garden: CozyGardenState.fromJson(
+              await DemoGarden(demo).harvest(nextPlant)));
+    }
     final response = await supabase.rpc(
       'harvest_cozy_garden',
       params: {'p_next_plant': nextPlant},
@@ -307,6 +311,10 @@ class CozyGardenStore {
   Future<DailyDuoGardenBonusResult> claimDailyDuoBonus({
     required String dayKey,
   }) async {
+    if (isPortfolioDemo) {
+      return DailyDuoGardenBonusResult.fromJson(
+          await DemoGarden(demo).claimBonus(dayKey, todayKey()));
+    }
     final response = await supabase.rpc(
       'claim_daily_duo_garden_bonus',
       params: {'p_day_key': dayKey},

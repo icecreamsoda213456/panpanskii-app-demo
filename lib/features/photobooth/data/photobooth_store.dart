@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/supabase/supabase.dart';
+import '../../../core/demo/demo_media.dart';
 import '../../auth/data/local_account_store.dart';
 
 class PhotoBoothSession {
@@ -280,6 +281,10 @@ class PhotoBoothStore {
   }
 
   Future<List<PhotoBoothPhoto>> loadPhotos(String sessionId) async {
+    if (isPortfolioDemo) {
+      return _withSignedUrls(demo.rows('photobooth_photos',
+          where: {'session_id': sessionId}, order: 'round_index'));
+    }
     final rows = await supabase
         .from('photobooth_photos')
         .select()
@@ -296,6 +301,26 @@ class PhotoBoothStore {
     int limit = 20,
     int offset = 0,
   }) async {
+    if (isPortfolioDemo) {
+      final end = endDate == null
+          ? null
+          : DateTime(endDate.year, endDate.month, endDate.day + 1);
+      final start = startDate == null
+          ? null
+          : DateTime(startDate.year, startDate.month, startDate.day);
+      return demo
+          .rows('photobooth_sessions', order: 'created_at', descending: true)
+          .map(PhotoBoothSession.fromJson)
+          .where((session) =>
+              session.isComplete &&
+              (frameStyle == null ||
+                  session.participantFrameStyle == frameStyle) &&
+              (start == null || !session.createdAt.isBefore(start)) &&
+              (end == null || session.createdAt.isBefore(end)))
+          .skip(offset < 0 ? 0 : offset)
+          .take(limit.clamp(1, 50))
+          .toList();
+    }
     _requireUser();
     final start = startDate == null
         ? null
@@ -332,6 +357,10 @@ class PhotoBoothStore {
   Future<List<PhotoBoothPhoto>> _withSignedUrls(
     List<Map<String, dynamic>> rows,
   ) async {
+    if (isPortfolioDemo) {
+      return Future.wait(rows.map((row) async => PhotoBoothPhoto.fromJson(row,
+          imageUrl: await DemoMedia.url(row['storage_path'] as String))));
+    }
     final photos = await Future.wait(
       rows.map((row) async {
         final path = row['storage_path'] as String? ?? '';

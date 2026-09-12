@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../demo_config.dart';
 
 class DailyBibleVerse {
   const DailyBibleVerse({
@@ -58,6 +59,7 @@ class DailyBibleVerseStore {
   static const _apiPath = '/data/web/random/NT';
 
   Future<DailyBibleVerse> loadTodayVerse({bool forceRefresh = false}) async {
+    if (isPortfolioDemo) return _fallbackForToday(_todayKey(DateTime.now()));
     final preferences = await SharedPreferences.getInstance();
     final todayKey = _todayKey(DateTime.now());
 
